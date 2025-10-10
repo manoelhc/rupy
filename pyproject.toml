@@ -1,0 +1,23 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "rupy"
+version = "0.1.0"
+description = "A high-performance web framework for Python, powered by Rust and Axum"
+readme = "INSTRUCTIONS.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Manoel Carvalho"},
+]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: 3",
+]
+
+[tool.maturin]
+python-source = "python"
+module-name = "rupy"
