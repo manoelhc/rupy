@@ -2,19 +2,29 @@
 
 ## Architecture
 
-Rupy is currently implemented in pure Python using `aiohttp` as the underlying HTTP server. This provides a solid foundation for the framework and allows for easy development and testing.
+Rupy is implemented with a **Rust backend** using Axum and PyO3, providing high-performance HTTP serving while maintaining an ergonomic Python API.
 
 ### Current Implementation
 
 The current implementation consists of:
 
-- **Python Package** (`rupy/`): Contains the main framework code
-  - `app.py`: Main Rupy application class with routing
-  - `request.py`: Request class for handling HTTP requests
-  - `response.py`: Response class for handling HTTP responses
-  - `routing.py`: Routing utilities and HTTP method constants
+- **Rust Backend** (`src/lib.rs`): HTTP server using Axum
+  - Route matching and request handling
+  - Integration with Python handlers via PyO3
+  - Async request/response processing
+  
+- **Python Package** (`python/rupy/`): Python API layer
+  - `__init__.py`: Main module with Rupy class wrapper
+  - `routing.py`: HTTP method constants
+  - Fallback pure Python implementation (for development)
 
-### Future Plans: Rust Backend
+### Technology Stack
+
+- **Rust**: Axum web framework + PyO3 for Python bindings
+- **Python**: Type-hinted API with async/await support
+- **Build Tool**: Maturin for building Python extension modules
+
+##Future Plans: Rust Backend
 
 As mentioned in the project description, Rupy is designed to leverage Rust (Axum + PyO3) for high performance. The Rust backend integration is planned for future releases.
 
@@ -37,7 +47,8 @@ The Python API will remain unchanged, allowing users to seamlessly upgrade from 
 ### Prerequisites
 
 - Python 3.8 or higher
-- pip
+- Rust and Cargo (for building the Rust extension)
+- pip and maturin
 
 ### Installation
 
@@ -47,9 +58,14 @@ git clone https://github.com/manoelhc/rupy.git
 cd rupy
 ```
 
-2. Install in development mode:
+2. Install maturin:
 ```bash
-pip install -e .
+pip install maturin
+```
+
+3. Build and install in development mode:
+```bash
+maturin develop --release
 ```
 
 ### Running Tests
@@ -75,18 +91,23 @@ curl -X POST http://localhost:8000/echo -H "Content-Type: application/json" -d '
 
 ```
 rupy/
-├── rupy/                  # Main package
-│   ├── __init__.py       # Package exports
-│   ├── app.py            # Rupy application class
-│   ├── request.py        # Request class
-│   ├── response.py       # Response class
-│   └── routing.py        # Routing utilities
+├── src/                   # Rust source code
+│   └── lib.rs            # Rust backend implementation
+├── python/rupy/          # Python package
+│   ├── __init__.py       # Main module with Rupy wrapper
+│   ├── routing.py        # HTTP method constants
+│   ├── app.py            # Pure Python fallback
+│   ├── request.py        # Request class (fallback)
+│   └── response.py       # Response class (fallback)
 ├── examples/             # Example applications
-│   └── simple_app.py    # Basic example
-├── test_rupy.py         # Unit tests
+│   ├── simple_app.py    # Basic example
+│   ├── json_api.py      # REST API example
+│   └── multi_route.py   # Multiple routing patterns
+├── Cargo.toml           # Rust dependencies
 ├── pyproject.toml       # Package metadata
+├── test_rupy.py         # Unit tests
 ├── README.md            # User documentation
-├── INSTRUCTIONS.md      # Project specifications
+├── CONTRIBUTING.md      # This file
 └── LICENSE              # MIT License
 ```
 
@@ -101,24 +122,51 @@ rupy/
 
 ## Code Style
 
-- Follow PEP 8 guidelines
+- **Rust**: Follow standard Rust formatting (`cargo fmt`)
+- **Python**: Follow PEP 8 guidelines
 - Use type hints where appropriate
 - Write docstrings for all public APIs
 - Keep functions focused and small
+
+## Building the Rust Extension
+
+To build the Rust extension:
+
+```bash
+# Development build
+maturin develop
+
+# Release build
+maturin build --release
+```
 
 ## Testing
 
 - Write tests for new features
 - Ensure all existing tests pass
 - Test edge cases and error conditions
+- Test both Rust and Python fallback implementations
 
-## Future Rust Implementation
+## Rust Backend Development
 
-If you're interested in contributing to the Rust backend implementation:
+The Rust backend is implemented using:
+
+- **Axum 0.7**: Modern web framework
+- **PyO3 0.22**: Python bindings with abi3 support
+- **Tokio**: Async runtime
+- **Regex**: Route pattern matching
+
+Key components:
+- Route registration and matching
+- Request/Response PyO3 classes
+- Python handler invocation from Rust
+- Async request handling
+
+If you're contributing to the Rust backend:
 
 1. Familiarity with Rust and Axum
 2. Experience with PyO3 for Python bindings
 3. Understanding of async Rust with Tokio
 4. Knowledge of Python C extensions
 
-Please open an issue to discuss Rust backend implementation plans before starting work.
+Please open an issue to discuss significant changes before starting work.

@@ -1,13 +1,14 @@
 # Rupy
 
-A high-performance Python web framework for building web applications.
+A high-performance Python web framework powered by **Rust (Axum + PyO3)**.
 
-> **Note**: Rupy is currently implemented in pure Python using aiohttp. A Rust-backed implementation using Axum + PyO3 is planned for future releases to provide even better performance.
+> **🚀 Rust Backend**: Rupy now includes a Rust backend implementation using Axum and PyO3! The Rust server provides significant performance improvements over pure Python implementations.
 
 ## Features
 
 - ✨ Simple and intuitive API
 - ⚡ Async/await support
+- 🦀 **Rust backend** with Axum for high performance
 - 🛣️ Path parameters in routes (e.g., `/user/<username>`)
 - 📦 JSON request/response handling
 - 🔧 Multiple HTTP methods support (GET, POST, PUT, DELETE, etc.)
@@ -20,7 +21,16 @@ A high-performance Python web framework for building web applications.
 ```bash
 git clone https://github.com/manoelhc/rupy.git
 cd rupy
-pip install -e .
+
+# Install maturin for building Rust extension
+pip install maturin
+
+# Build and install with Rust backend
+maturin develop --release
+
+# Or build wheel
+maturin build --release
+pip install target/wheels/rupy-*.whl
 ```
 
 ## Quick Start

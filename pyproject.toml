@@ -1,11 +1,11 @@
 [build-system]
-requires = ["setuptools>=45", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
 
 [project]
 name = "rupy"
 version = "0.1.0"
-description = "A high-performance Python web framework"
+description = "A high-performance Python web framework powered by Rust and Axum"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
@@ -22,14 +22,14 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-]
-dependencies = [
-    "aiohttp>=3.8.0",
+    "Programming Language :: Rust",
 ]
 
 [project.urls]
 Homepage = "https://github.com/manoelhc/rupy"
 Repository = "https://github.com/manoelhc/rupy"
 
-[tool.setuptools]
-packages = ["rupy"]
+[tool.maturin]
+python-source = "python"
+module-name = "rupy.rupy_core"
+
