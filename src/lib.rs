@@ -140,7 +140,45 @@ async fn run_server(host: &str, port: u16, routes: Arc<Mutex<Vec<RouteInfo>>>) {
     println!("Starting Rupy server on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    
+    // Setup graceful shutdown signal handler
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
+    
+    println!("Server shutdown complete");
+}
+
+// Handle shutdown signals (Ctrl+C)
+async fn shutdown_signal() {
+    use tokio::signal;
+    
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            println!("\nReceived Ctrl+C, shutting down gracefully...");
+        },
+        _ = terminate => {
+            println!("\nReceived terminate signal, shutting down gracefully...");
+        },
+    }
 }
 
 // Parse path parameters from route pattern
