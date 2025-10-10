@@ -106,20 +106,26 @@ impl Rupy {
     }
 
     #[pyo3(signature = (host=None, port=None))]
-    fn run(&self, host: Option<String>, port: Option<u16>) -> PyResult<()> {
+    fn run(&self, py: Python, host: Option<String>, port: Option<u16>) -> PyResult<()> {
         let host = host.unwrap_or_else(|| self.host.clone());
         let port = port.unwrap_or(self.port);
         let routes = self.routes.clone();
 
-        // Run the async server in a blocking context
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-        runtime.block_on(async { run_server(&host, port, routes).await });
+        // Release the GIL before running the async server
+        py.allow_threads(|| {
+            // Run the async server in a blocking context
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            runtime.block_on(async { run_server(&host, port, routes).await });
+        });
 
         Ok(())
     }
 }
 
 async fn run_server(host: &str, port: u16, routes: Arc<Mutex<Vec<RouteInfo>>>) {
+    // Prepare Python for freethreaded access
+    pyo3::prepare_freethreaded_python();
+    
     // Create a router that matches all routes
     let app = Router::new()
         .fallback(move |method, uri, request| {
@@ -217,11 +223,11 @@ async fn handler_request(
         
         // Now handle the matched route outside the lock
         if let Some((route_info, param_values)) = matched_route {
-            return Python::with_gil(|py| {
+            let response = Python::with_gil(|py| {
                 // Create PyRequest
                 let py_request = PyRequest::new(
                     method.as_str().to_string(),
-                    path,
+                    path.clone(),
                     String::new(),
                 );
                 
@@ -262,6 +268,8 @@ async fn handler_request(
                     }
                 }
             });
+            
+            return response;
         }
     }
     
