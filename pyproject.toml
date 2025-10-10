@@ -20,4 +20,5 @@ classifiers = [
 
 [tool.maturin]
 python-source = "python"
-module-name = "rupy"
+# Place the compiled extension inside the Python package: rupy/rupy.*.so
+module-name = "rupy.rupy"
