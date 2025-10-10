@@ -12,6 +12,41 @@ A high-performance web framework for Python, powered by Rust and Axum.
 - ✅ Async/await support
 - ✅ JSON-formatted request logging
 
+## Installation
+
+### Adding as a Dependency
+
+To add Rupy as a dependency to your project using the GitHub repository, add the following to your `pyproject.toml`:
+
+```toml
+[project]
+dependencies = [
+    "rupy @ git+https://github.com/manoelhc/rupy.git"
+]
+```
+
+Or for a specific branch, tag, or commit:
+
+```toml
+[project]
+dependencies = [
+    # Using a specific branch
+    "rupy @ git+https://github.com/manoelhc/rupy.git@main",
+    
+    # Using a specific tag
+    "rupy @ git+https://github.com/manoelhc/rupy.git@v0.1.0",
+    
+    # Using a specific commit
+    "rupy @ git+https://github.com/manoelhc/rupy.git@abc123",
+]
+```
+
+Then install the dependencies:
+
+```bash
+pip install .
+```
+
 ## Building from Source
 
 ### Prerequisites
