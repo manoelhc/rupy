@@ -14,16 +14,12 @@ def _route_decorator(rupy_instance, path: str, methods: Optional[List[str]] = No
     Args:
         rupy_instance: The Rupy instance
         path: The URL path pattern (e.g., "/", "/user/<username>")
-        methods: List of HTTP methods (currently only "GET" is supported)
+        methods: List of HTTP methods (e.g., ["GET", "POST"])
     
     Returns:
         Decorator function
     """
     methods = methods or ["GET"]
-    
-    # Currently only GET is supported
-    if "GET" not in methods:
-        raise ValueError("Only GET method is currently supported")
     
     def decorator(func: Callable):
         # Register the route with the Rust backend
@@ -36,8 +32,8 @@ def _route_decorator(rupy_instance, path: str, methods: Optional[List[str]] = No
                 return Response(result)
             return result
         
-        # Call the Rust route method to register
-        rupy_instance.route(path, wrapper)
+        # Call the original Rust route method to register with methods
+        _original_rupy_route(rupy_instance, path, wrapper, methods)
         
         return func
     
@@ -57,7 +53,7 @@ def _new_route(self, path: str, methods: Optional[List[str]] = None):
             return Response("Hello")
     
     Or as a direct call (internal use):
-        app.route("/", handler_func)
+        app.route("/", handler_func, ["GET"])
     """
     # Check if this is being called as a decorator (path is string)
     # or as a direct registration (path is string, second arg is function)
@@ -65,7 +61,9 @@ def _new_route(self, path: str, methods: Optional[List[str]] = None):
         # Direct registration: route(path, handler)
         # In this case, 'methods' is actually the handler function
         handler = methods
-        return _original_rupy_route(self, path, handler)
+        # Default to GET method if not specified
+        actual_methods = ["GET"]
+        return _original_rupy_route(self, path, handler, actual_methods)
     else:
         # Decorator usage: route(path, methods=["GET"])
         return _route_decorator(self, path, methods)
