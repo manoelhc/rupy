@@ -208,8 +208,11 @@ async fn handler_request(
     let path = uri.path().to_string();
     let method_str = method.as_str();
 
-    // Extract body if this is a POST request
-    let body = if method == Method::POST {
+    // Extract body for methods that support it (POST, PUT, PATCH, DELETE)
+    let body = if method == Method::POST 
+        || method == Method::PUT 
+        || method == Method::PATCH 
+        || method == Method::DELETE {
         match axum::body::to_bytes(request.into_body(), usize::MAX).await {
             Ok(bytes) => String::from_utf8_lossy(&bytes).to_string(),
             Err(_) => String::new(),
