@@ -92,16 +92,16 @@ impl Rupy {
         // Parse path parameters from the route pattern
         // e.g., "/user/<username>" -> path_params = ["username"]
         let path_params = parse_path_params(&path);
-        
+
         let route_info = RouteInfo {
             path,
             handler,
             path_params,
         };
-        
+
         let mut routes = self.routes.lock().unwrap();
         routes.push(route_info);
-        
+
         Ok(())
     }
 
@@ -125,13 +125,12 @@ impl Rupy {
 async fn run_server(host: &str, port: u16, routes: Arc<Mutex<Vec<RouteInfo>>>) {
     // Prepare Python for freethreaded access
     pyo3::prepare_freethreaded_python();
-    
+
     // Create a router that matches all routes
-    let app = Router::new()
-        .fallback(move |method, uri, request| {
-            let routes = routes.clone();
-            async move { handler_request(method, uri, request, routes).await }
-        });
+    let app = Router::new().fallback(move |method, uri, request| {
+        let routes = routes.clone();
+        async move { handler_request(method, uri, request, routes).await }
+    });
 
     let addr = format!("{}:{}", host, port).parse::<SocketAddr>().unwrap();
 
@@ -147,7 +146,7 @@ fn parse_path_params(path: &str) -> Vec<String> {
     let mut params = Vec::new();
     let mut in_param = false;
     let mut current_param = String::new();
-    
+
     for c in path.chars() {
         match c {
             '<' => {
@@ -167,23 +166,23 @@ fn parse_path_params(path: &str) -> Vec<String> {
             }
         }
     }
-    
+
     params
 }
 
 // Match request path against route patterns and extract parameters
 fn match_route(request_path: &str, route_pattern: &str) -> Option<Vec<String>> {
     // Simple string matching for exact paths and basic parameter extraction
-    
+
     let route_parts: Vec<&str> = route_pattern.split('/').collect();
     let request_parts: Vec<&str> = request_path.split('/').collect();
-    
+
     if route_parts.len() != request_parts.len() {
         return None;
     }
-    
+
     let mut params = Vec::new();
-    
+
     for (route_part, request_part) in route_parts.iter().zip(request_parts.iter()) {
         if route_part.starts_with('<') && route_part.ends_with('>') {
             // This is a parameter
@@ -193,7 +192,7 @@ fn match_route(request_path: &str, route_pattern: &str) -> Option<Vec<String>> {
             return None;
         }
     }
-    
+
     Some(params)
 }
 
@@ -204,14 +203,14 @@ async fn handler_request(
     routes: Arc<Mutex<Vec<RouteInfo>>>,
 ) -> axum::response::Response {
     let path = uri.path().to_string();
-    
+
     // Only handle GET requests for now
     if method == Method::GET {
         // Try to find a matching route
         let matched_route = {
             let routes_lock = routes.lock().unwrap();
             let mut matched: Option<(RouteInfo, Vec<String>)> = None;
-            
+
             for route_info in routes_lock.iter() {
                 if let Some(param_values) = match_route(&path, &route_info.path) {
                     matched = Some((route_info.clone(), param_values));
@@ -220,17 +219,14 @@ async fn handler_request(
             }
             matched
         }; // routes_lock is dropped here
-        
+
         // Now handle the matched route outside the lock
         if let Some((route_info, param_values)) = matched_route {
             let response = Python::with_gil(|py| {
                 // Create PyRequest
-                let py_request = PyRequest::new(
-                    method.as_str().to_string(),
-                    path.clone(),
-                    String::new(),
-                );
-                
+                let py_request =
+                    PyRequest::new(method.as_str().to_string(), path.clone(), String::new());
+
                 // Call the handler with the request and path parameters
                 let result = if param_values.is_empty() {
                     // No parameters, just pass the request
@@ -244,20 +240,23 @@ async fn handler_request(
                     let py_tuple = PyTuple::new_bound(py, args);
                     route_info.handler.call1(py, py_tuple)
                 };
-                
+
                 match result {
                     Ok(response) => {
                         // Extract the response
                         if let Ok(py_response) = response.extract::<PyResponse>(py) {
-                            let status_code = StatusCode::from_u16(py_response.status)
-                                .unwrap_or(StatusCode::OK);
+                            let status_code =
+                                StatusCode::from_u16(py_response.status).unwrap_or(StatusCode::OK);
                             (status_code, py_response.body).into_response()
                         } else {
                             // Try to convert to string
                             if let Ok(response_str) = response.extract::<String>(py) {
                                 (StatusCode::OK, response_str).into_response()
                             } else {
-                                (StatusCode::INTERNAL_SERVER_ERROR, "Invalid response from handler")
+                                (
+                                    StatusCode::INTERNAL_SERVER_ERROR,
+                                    "Invalid response from handler",
+                                )
                                     .into_response()
                             }
                         }
@@ -268,11 +267,11 @@ async fn handler_request(
                     }
                 }
             });
-            
+
             return response;
         }
     }
-    
+
     // No route matched or method not supported, return 404
     handler_404(method, Uri::from_maybe_shared(path).unwrap(), _request).await
 }
