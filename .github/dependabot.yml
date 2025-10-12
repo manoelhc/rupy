@@ -1,0 +1,33 @@
+version: 2
+updates:
+  # Configuration for Rust dependencies using Cargo
+  - package-ecosystem: "cargo"
+    directory: "/" # Location of your Cargo.toml file
+    schedule:
+      interval: "weekly" # Check for updates weekly
+    # Optional: Set a target branch if you want PRs to be opened against a non-default branch
+    # target-branch: "develop"
+    # Optional: Group updates for certain dependencies
+    # groups:
+    #   tokio:
+    #     patterns:
+    #       - "tokio*"
+
+  # Configuration for Python dependencies using Pip
+  - package-ecosystem: "pip"
+    directory: "/" # Location of your requirements.txt or pyproject.toml
+    schedule:
+      interval: "weekly" # Check for updates daily
+    # Optional: Specify a file to monitor if not in the root directory
+    # open-pull-requests-limit: 10 # Limit the number of open pull requests
+    # assignees:
+    #   - "your-github-username"
+
+  # Configuration for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: ".github/workflows" # Location of your workflow files (e.g., .github/workflows)
+    schedule:
+      interval: "weekly" # Check for updates monthly
+    # Optional: Reviewers for GitHub Actions updates
+    # reviewers:
+    #   - "your-team"
