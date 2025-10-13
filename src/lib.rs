@@ -6,6 +6,7 @@ use axum::{
 };
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
+use pyo3::IntoPyObjectExt;
 use serde_json::json;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -56,14 +57,14 @@ impl PyResponse {
 // Route information
 struct RouteInfo {
     path: String,
-    handler: PyObject,
+    handler: Py<PyAny>,
     path_params: Vec<String>, // e.g., ["username"] for "/user/<username>"
     methods: Vec<String>,     // e.g., ["GET", "POST"]
 }
 
 impl Clone for RouteInfo {
     fn clone(&self) -> Self {
-        Python::with_gil(|py| RouteInfo {
+        Python::attach(|py| RouteInfo {
             path: self.path.clone(),
             handler: self.handler.clone_ref(py),
             path_params: self.path_params.clone(),
@@ -90,7 +91,7 @@ impl Rupy {
         }
     }
 
-    fn route(&self, path: String, handler: PyObject, methods: Vec<String>) -> PyResult<()> {
+    fn route(&self, path: String, handler: Py<PyAny>, methods: Vec<String>) -> PyResult<()> {
         // Parse path parameters from the route pattern
         // e.g., "/user/<username>" -> path_params = ["username"]
         let path_params = parse_path_params(&path);
@@ -115,7 +116,7 @@ impl Rupy {
         let routes = self.routes.clone();
 
         // Release the GIL before running the async server
-        py.allow_threads(|| {
+        py.detach(|| {
             // Run the async server in a blocking context
             let runtime = tokio::runtime::Runtime::new().unwrap();
             runtime.block_on(async { run_server(&host, port, routes).await });
@@ -127,7 +128,7 @@ impl Rupy {
 
 async fn run_server(host: &str, port: u16, routes: Arc<Mutex<Vec<RouteInfo>>>) {
     // Prepare Python for freethreaded access
-    pyo3::prepare_freethreaded_python();
+    Python::initialize();
 
     // Create a router that matches all routes
     let app = Router::new().fallback(move |method, uri, request| {
@@ -280,7 +281,7 @@ async fn handler_request(
 
     // Now handle the matched route outside the lock
     if let Some((route_info, param_values)) = matched_route {
-        let response = Python::with_gil(|py| {
+        let response = Python::attach(|py| {
             // Create PyRequest with method, path, and body
             let py_request = PyRequest::new(method_str.to_string(), path.clone(), body);
 
@@ -290,11 +291,12 @@ async fn handler_request(
                 route_info.handler.call1(py, (py_request,))
             } else {
                 // Pass request and parameters
-                let mut args = vec![py_request.into_py(py)];
+                let py_request_bound = Bound::new(py, py_request).unwrap();
+                let mut args: Vec<Bound<PyAny>> = vec![py_request_bound.into_any()];
                 for param in param_values {
-                    args.push(param.into_py(py));
+                    args.push(param.into_bound_py_any(py).unwrap());
                 }
-                let py_tuple = PyTuple::new_bound(py, args);
+                let py_tuple = PyTuple::new(py, &args).unwrap();
                 route_info.handler.call1(py, py_tuple)
             };
 
