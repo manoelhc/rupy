@@ -8,6 +8,8 @@ on:
 
 jobs:
   rust-build-and-test:
+    permissions:
+      contents: read
     name: Rust Build and Test
     runs-on: ubuntu-latest
     
@@ -99,7 +101,7 @@ jobs:
     - name: Run Python tests (if they exist)
       run: |
         if [ -d "tests" ]; then
-          pip install pytest
+          pip install pytest requests
           pytest tests/
         else
           echo "No Python tests found, skipping"
@@ -108,6 +110,8 @@ jobs:
       continue-on-error: true
 
   lint:
+    permissions:
+      contents: read
     name: Lint and Format Check
     runs-on: ubuntu-latest
     
