@@ -58,7 +58,7 @@ struct RouteInfo {
     path: String,
     handler: PyObject,
     path_params: Vec<String>, // e.g., ["username"] for "/user/<username>"
-    methods: Vec<String>, // e.g., ["GET", "POST"]
+    methods: Vec<String>,     // e.g., ["GET", "POST"]
 }
 
 impl Clone for RouteInfo {
@@ -140,20 +140,20 @@ async fn run_server(host: &str, port: u16, routes: Arc<Mutex<Vec<RouteInfo>>>) {
     println!("Starting Rupy server on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    
+
     // Setup graceful shutdown signal handler
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
         .unwrap();
-    
+
     println!("Server shutdown complete");
 }
 
 // Handle shutdown signals (Ctrl+C)
 async fn shutdown_signal() {
     use tokio::signal;
-    
+
     let ctrl_c = async {
         signal::ctrl_c()
             .await
@@ -247,10 +247,11 @@ async fn handler_request(
     let method_str = method.as_str();
 
     // Extract body for methods that support it (POST, PUT, PATCH, DELETE)
-    let body = if method == Method::POST 
-        || method == Method::PUT 
-        || method == Method::PATCH 
-        || method == Method::DELETE {
+    let body = if method == Method::POST
+        || method == Method::PUT
+        || method == Method::PATCH
+        || method == Method::DELETE
+    {
         match axum::body::to_bytes(request.into_body(), usize::MAX).await {
             Ok(bytes) => String::from_utf8_lossy(&bytes).to_string(),
             Err(_) => String::new(),
@@ -281,8 +282,7 @@ async fn handler_request(
     if let Some((route_info, param_values)) = matched_route {
         let response = Python::with_gil(|py| {
             // Create PyRequest with method, path, and body
-            let py_request =
-                PyRequest::new(method_str.to_string(), path.clone(), body);
+            let py_request = PyRequest::new(method_str.to_string(), path.clone(), body);
 
             // Call the handler with the request and path parameters
             let result = if param_values.is_empty() {
@@ -329,7 +329,12 @@ async fn handler_request(
     }
 
     // No route matched or method not supported, return 404
-    handler_404(method, Uri::from_maybe_shared(path).unwrap(), Request::default()).await
+    handler_404(
+        method,
+        Uri::from_maybe_shared(path).unwrap(),
+        Request::default(),
+    )
+    .await
 }
 
 async fn handler_404(method: Method, uri: Uri, _request: Request) -> axum::response::Response {
