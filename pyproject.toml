@@ -18,6 +18,11 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 
+[project.optional-dependencies]
+dev = [
+	"requests>=2.25.0",
+]
+
 [tool.maturin]
 python-source = "python"
 # Place the compiled extension inside the Python package: rupy/rupy.*.so
