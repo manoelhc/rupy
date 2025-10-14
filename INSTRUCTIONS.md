@@ -9,22 +9,20 @@ Example of a simple web application using Rupy:
 
 ```python
 from rupy import Rupy, Request, Response
-from rupy.routing import get, post
 
-app = Rupy(__main__)
+app = Rupy()
 
 @app.route("/", methods=["GET"])
-async def hello_world(request: Request) -> Response:
+def hello_world(request: Request) -> Response:
     return Response("Hello, World!")
 
 @app.route("/user/<username>", methods=["GET"])
-async def hello_user(request: Request, username: str) -> Response:
+def hello_user(request: Request, username: str) -> Response:
     return Response(f"Hello, {username}!")
 
 @app.route("/echo", methods=["POST"])
-async def echo(request: Request) -> Response:
-    data = await request.json()
-    return Response(data)
+def echo(request: Request) -> Response:
+    return Response(f"Echo: {request.body}")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
@@ -34,6 +32,46 @@ To run the application, save the code to a file named `app.py` and execute it us
 ```bash
 python app.py
 ```
+
+## Middleware Support
+
+Rupy supports middleware functions that execute before route handlers. This allows you to add cross-cutting concerns like authentication, logging, CORS, etc.
+
+Example with middleware:
+
+```python
+from rupy import Rupy, Request, Response
+
+app = Rupy()
+
+@app.middleware
+def auth_middleware(request: Request):
+    if request.path.startswith("/admin"):
+        return Response("Unauthorized", status=401)
+    return request
+
+@app.middleware
+def logging_middleware(request: Request):
+    print(f"Request: {request.method} {request.path}")
+    return request
+
+@app.route("/", methods=["GET"])
+def index(request: Request) -> Response:
+    return Response("Public page")
+
+@app.route("/admin", methods=["GET"])
+def admin(request: Request) -> Response:
+    return Response("Admin page")
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000)
+```
+
+Middlewares can:
+- Inspect and modify requests
+- Return early responses (blocking further processing)
+- Execute in registration order
+- Be used for authentication, logging, CORS, rate limiting, etc.
 
 # Performance
 
