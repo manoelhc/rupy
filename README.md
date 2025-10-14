@@ -12,6 +12,7 @@ A high-performance web framework for Python, powered by Rust and Axum.
 - ✅ Async/await support
 - ✅ JSON-formatted request logging
 - ✅ OpenTelemetry support for metrics, tracing, and logging
+- ✅ Middleware support for request/response processing
 
 ## Installation
 
@@ -160,6 +161,78 @@ You can define dynamic segments in your routes using angle brackets:
 def get_user_post(request: Request, username: str, post_id: str) -> Response:
     return Response(f"Post {post_id} by {username}")
 ```
+
+### Middleware
+
+Rupy supports middleware functions that execute before route handlers. Middlewares can:
+- Inspect and modify requests
+- Return early responses (e.g., for authentication)
+- Execute in registration order
+- Block or allow requests to proceed
+
+#### Basic Middleware
+
+```python
+from rupy import Rupy, Request, Response
+
+app = Rupy()
+
+@app.middleware
+def logging_middleware(request: Request):
+    print(f"Processing {request.method} {request.path}")
+    # Return request to continue to next middleware/handler
+    return request
+
+@app.middleware
+def auth_middleware(request: Request):
+    # Check authentication and block if needed
+    if request.path.startswith("/admin") and not is_authenticated(request):
+        return Response("Unauthorized", status=401)
+    return request
+
+@app.route("/", methods=["GET"])
+def index(request: Request) -> Response:
+    return Response("Hello, World!")
+```
+
+#### CORS Middleware Example
+
+```python
+@app.middleware
+def cors_middleware(request: Request):
+    print(f"[CORS] Processing {request.method} {request.path}")
+    
+    # Handle preflight OPTIONS requests
+    if request.method == "OPTIONS":
+        return Response("", status=204)
+    
+    # Continue to next middleware or route handler
+    return request
+```
+
+#### JWT Authentication Middleware Example
+
+```python
+@app.middleware
+def jwt_auth_middleware(request: Request):
+    # Skip auth for public routes
+    if request.path in ["/", "/login", "/public"]:
+        return request
+    
+    # Check for protected routes
+    if request.path.startswith("/protected"):
+        # In real implementation, validate JWT token from headers
+        return Response(
+            '{"error": "Unauthorized - Invalid or missing JWT token"}',
+            status=401
+        )
+    
+    return request
+```
+
+For complete examples, see:
+- `examples/cors_middleware.py` - CORS protection
+- `examples/jwt_middleware.py` - JWT authentication
 
 ### Testing Your Application
 
