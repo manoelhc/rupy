@@ -36,6 +36,18 @@ impl PyRequest {
     fn new(method: String, path: String, body: String) -> Self {
         PyRequest { method, path, body }
     }
+
+    fn get_header(&self, _py: Python, _key: String) -> PyResult<Option<String>> {
+        // For now, headers are not extracted from the request
+        // This is a placeholder for future implementation
+        Ok(None)
+    }
+
+    fn set_header(&mut self, _py: Python, _key: String, _value: String) -> PyResult<()> {
+        // For now, this is a no-op
+        // This is a placeholder for future implementation
+        Ok(())
+    }
 }
 
 // Python Response wrapper
@@ -79,6 +91,19 @@ impl Clone for RouteInfo {
     }
 }
 
+// Middleware information
+struct MiddlewareInfo {
+    handler: Py<PyAny>,
+}
+
+impl Clone for MiddlewareInfo {
+    fn clone(&self) -> Self {
+        Python::attach(|py| MiddlewareInfo {
+            handler: self.handler.clone_ref(py),
+        })
+    }
+}
+
 // Telemetry configuration
 #[derive(Clone)]
 struct TelemetryConfig {
@@ -92,6 +117,7 @@ struct Rupy {
     host: String,
     port: u16,
     routes: Arc<Mutex<Vec<RouteInfo>>>,
+    middlewares: Arc<Mutex<Vec<MiddlewareInfo>>>,
     telemetry_config: Arc<Mutex<TelemetryConfig>>,
 }
 
@@ -111,6 +137,7 @@ impl Rupy {
             host: "127.0.0.1".to_string(),
             port: 8000,
             routes: Arc::new(Mutex::new(Vec::new())),
+            middlewares: Arc::new(Mutex::new(Vec::new())),
             telemetry_config: Arc::new(Mutex::new(TelemetryConfig {
                 enabled,
                 endpoint,
@@ -133,6 +160,15 @@ impl Rupy {
 
         let mut routes = self.routes.lock().unwrap();
         routes.push(route_info);
+
+        Ok(())
+    }
+
+    fn middleware(&self, handler: Py<PyAny>) -> PyResult<()> {
+        let middleware_info = MiddlewareInfo { handler };
+
+        let mut middlewares = self.middlewares.lock().unwrap();
+        middlewares.push(middleware_info);
 
         Ok(())
     }
@@ -189,13 +225,16 @@ impl Rupy {
         let host = host.unwrap_or_else(|| self.host.clone());
         let port = port.unwrap_or(self.port);
         let routes = self.routes.clone();
+        let middlewares = self.middlewares.clone();
         let telemetry_config = self.telemetry_config.clone();
 
         // Release the GIL before running the async server
         py.detach(|| {
             // Run the async server in a blocking context
             let runtime = tokio::runtime::Runtime::new().unwrap();
-            runtime.block_on(async { run_server(&host, port, routes, telemetry_config).await });
+            runtime.block_on(async {
+                run_server(&host, port, routes, middlewares, telemetry_config).await
+            });
         });
 
         Ok(())
@@ -249,6 +288,7 @@ async fn run_server(
     host: &str,
     port: u16,
     routes: Arc<Mutex<Vec<RouteInfo>>>,
+    middlewares: Arc<Mutex<Vec<MiddlewareInfo>>>,
     telemetry_config: Arc<Mutex<TelemetryConfig>>,
 ) {
     // Prepare Python for freethreaded access
@@ -266,8 +306,11 @@ async fn run_server(
     let app = Router::new()
         .fallback(move |method, uri, request| {
             let routes = routes.clone();
+            let middlewares = middlewares.clone();
             let telemetry_config = telemetry_config.clone();
-            async move { handler_request(method, uri, request, routes, telemetry_config).await }
+            async move {
+                handler_request(method, uri, request, routes, middlewares, telemetry_config).await
+            }
         })
         .layer(TraceLayer::new_for_http());
 
@@ -380,11 +423,63 @@ fn match_route(request_path: &str, route_pattern: &str) -> Option<Vec<String>> {
     Some(params)
 }
 
+// Helper function to record metrics
+fn record_metrics(
+    telemetry_config: &Arc<Mutex<TelemetryConfig>>,
+    method_str: &str,
+    path: &str,
+    status_code: u16,
+    duration: std::time::Duration,
+) {
+    let is_enabled = {
+        let config = telemetry_config.lock().unwrap();
+        config.enabled
+    };
+
+    if is_enabled {
+        let service_name = {
+            let config = telemetry_config.lock().unwrap();
+            config.service_name.clone()
+        };
+
+        // Get meter and record metrics (leak the string to get 'static lifetime)
+        let meter = global::meter(Box::leak(service_name.into_boxed_str()));
+        let counter = meter
+            .u64_counter("http.server.requests")
+            .with_description("Total number of HTTP requests")
+            .build();
+        let histogram = meter
+            .f64_histogram("http.server.duration")
+            .with_description("HTTP request duration in seconds")
+            .with_unit("s")
+            .build();
+
+        counter.add(
+            1,
+            &[
+                KeyValue::new("http.method", method_str.to_string()),
+                KeyValue::new("http.route", path.to_string()),
+                KeyValue::new("http.status_code", status_code as i64),
+            ],
+        );
+
+        histogram.record(
+            duration.as_secs_f64(),
+            &[
+                KeyValue::new("http.method", method_str.to_string()),
+                KeyValue::new("http.route", path.to_string()),
+                KeyValue::new("http.status_code", status_code as i64),
+            ],
+        );
+    }
+}
+
 async fn handler_request(
     method: Method,
     uri: Uri,
     request: Request,
     routes: Arc<Mutex<Vec<RouteInfo>>>,
+    middlewares: Arc<Mutex<Vec<MiddlewareInfo>>>,
     telemetry_config: Arc<Mutex<TelemetryConfig>>,
 ) -> axum::response::Response {
     let start_time = Instant::now();
@@ -416,6 +511,58 @@ async fn handler_request(
     } else {
         String::new()
     };
+
+    // Execute middlewares
+    let middleware_result = {
+        let middlewares_lock = middlewares.lock().unwrap();
+        let middlewares_list = middlewares_lock.clone();
+        drop(middlewares_lock);
+
+        Python::attach(|py| {
+            // Create PyRequest with method, path, and body
+            let mut py_request = PyRequest::new(method_str.clone(), path.clone(), body.clone());
+
+            // Execute each middleware in order
+            for middleware_info in middlewares_list.iter() {
+                let result = middleware_info.handler.call1(py, (py_request.clone(),));
+
+                match result {
+                    Ok(response) => {
+                        // Check if middleware returned a Response (early termination)
+                        if let Ok(py_response) = response.extract::<PyResponse>(py) {
+                            let status_code =
+                                StatusCode::from_u16(py_response.status).unwrap_or(StatusCode::OK);
+                            let status_u16 = status_code.as_u16();
+                            return Some(((status_code, py_response.body).into_response(), status_u16));
+                        }
+                        // Otherwise, middleware might have modified the request
+                        // Try to extract updated request
+                        if let Ok(updated_request) = response.extract::<PyRequest>(py) {
+                            py_request = updated_request;
+                        }
+                    }
+                    Err(e) => {
+                        error!("Error calling middleware: {:?}", e);
+                        return Some((
+                            (StatusCode::INTERNAL_SERVER_ERROR, "Middleware Error").into_response(),
+                            500,
+                        ));
+                    }
+                }
+            }
+
+            // No middleware returned early, pass the (possibly modified) request forward
+            None
+        })
+    };
+
+    // If middleware returned a response, return it
+    if let Some((response, status_code)) = middleware_result {
+        let duration = start_time.elapsed();
+        record_metrics(&telemetry_config, &method_str, &path, status_code, duration);
+        info!("Request completed: {} - Duration: {:?}", status_code, duration);
+        return response;
+    }
 
     // Try to find a matching route
     let matched_route = {
@@ -505,47 +652,7 @@ async fn handler_request(
 
     // Record metrics
     let duration = start_time.elapsed();
-    let is_enabled = {
-        let config = telemetry_config.lock().unwrap();
-        config.enabled
-    };
-
-    if is_enabled {
-        let service_name = {
-            let config = telemetry_config.lock().unwrap();
-            config.service_name.clone()
-        };
-
-        // Get meter and record metrics (leak the string to get 'static lifetime)
-        let meter = global::meter(Box::leak(service_name.into_boxed_str()));
-        let counter = meter
-            .u64_counter("http.server.requests")
-            .with_description("Total number of HTTP requests")
-            .build();
-        let histogram = meter
-            .f64_histogram("http.server.duration")
-            .with_description("HTTP request duration in seconds")
-            .with_unit("s")
-            .build();
-
-        counter.add(
-            1,
-            &[
-                KeyValue::new("http.method", method_str.clone()),
-                KeyValue::new("http.route", path.clone()),
-                KeyValue::new("http.status_code", status_code as i64),
-            ],
-        );
-
-        histogram.record(
-            duration.as_secs_f64(),
-            &[
-                KeyValue::new("http.method", method_str),
-                KeyValue::new("http.route", path),
-                KeyValue::new("http.status_code", status_code as i64),
-            ],
-        );
-    }
+    record_metrics(&telemetry_config, &method_str, &path, status_code, duration);
 
     info!(
         "Request completed: {} - Duration: {:?}",
