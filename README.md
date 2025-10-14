@@ -11,6 +11,7 @@ A high-performance web framework for Python, powered by Rust and Axum.
 - ✅ Request body parsing for POST, PUT, PATCH, and DELETE
 - ✅ Async/await support
 - ✅ JSON-formatted request logging
+- ✅ OpenTelemetry support for metrics, tracing, and logging
 
 ## Installation
 
@@ -188,11 +189,173 @@ curl -X PATCH -d '{"status": "active"}' http://127.0.0.1:8000/items/1
 curl -X DELETE http://127.0.0.1:8000/items/1
 ```
 
+## OpenTelemetry Support
+
+Rupy includes built-in support for OpenTelemetry, providing comprehensive observability through metrics, tracing, and logging.
+
+### Enabling OpenTelemetry
+
+You can enable OpenTelemetry in two ways:
+
+#### 1. Programmatically
+
+```python
+from rupy import Rupy, Request, Response
+
+app = Rupy()
+
+# Enable telemetry with optional endpoint and service name
+app.enable_telemetry(
+    endpoint="http://localhost:4317",  # Optional: OTLP gRPC endpoint
+    service_name="my-service"           # Optional: Service name for traces
+)
+
+@app.route("/", methods=["GET"])
+def index(request: Request) -> Response:
+    return Response("Hello, World!")
+
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port=8000)
+```
+
+#### 2. Using Environment Variables
+
+Set these environment variables before running your application:
+
+```bash
+# Enable OpenTelemetry
+export OTEL_ENABLED=true
+
+# Set the service name (default: "rupy")
+export OTEL_SERVICE_NAME=my-service
+
+# Set the OTLP endpoint (optional)
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+
+# Set the log level (optional)
+export RUST_LOG=info
+
+# Run your application
+python app.py
+```
+
+### OpenTelemetry Methods
+
+Rupy provides several methods to control OpenTelemetry:
+
+```python
+app = Rupy()
+
+# Enable telemetry
+app.enable_telemetry(endpoint="http://localhost:4317", service_name="my-service")
+
+# Disable telemetry
+app.disable_telemetry()
+
+# Check if telemetry is enabled
+is_enabled = app.is_telemetry_enabled()
+
+# Set service name
+app.set_service_name("my-new-service")
+
+# Set OTLP endpoint
+app.set_telemetry_endpoint("http://localhost:4317")
+```
+
+### Collected Metrics
+
+Rupy automatically collects the following metrics:
+
+- **`http.server.requests`**: Counter for total number of HTTP requests
+  - Labels: `http.method`, `http.route`, `http.status_code`
+
+- **`http.server.duration`**: Histogram for HTTP request duration in seconds
+  - Labels: `http.method`, `http.route`, `http.status_code`
+
+### Tracing
+
+Each HTTP request creates a span with the following attributes:
+- `http.method`: The HTTP method (GET, POST, etc.)
+- `http.route`: The matched route pattern
+- `http.scheme`: The protocol scheme (http/https)
+
+Spans are nested for handler execution, allowing you to trace the complete request lifecycle.
+
+### Logging
+
+All logs are emitted in JSON format and include:
+- Timestamp
+- Log level
+- Message
+- Request details (method, path, status)
+- Handler execution information
+
+### Integration with Observability Platforms
+
+Rupy's OpenTelemetry implementation works with any OTLP-compatible backend:
+
+- **Jaeger**: For distributed tracing
+- **Prometheus**: For metrics collection
+- **Grafana**: For visualization
+- **OpenTelemetry Collector**: For data processing and export
+- **Datadog, New Relic, Honeycomb**: Commercial observability platforms
+
+Example with OpenTelemetry Collector:
+
+```yaml
+# otel-collector-config.yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+  jaeger:
+    endpoint: "jaeger:14250"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [jaeger]
+    metrics:
+      receivers: [otlp]
+      exporters: [prometheus]
+```
+
+Run the collector:
+```bash
+docker run -d \
+  -v $(pwd)/otel-collector-config.yaml:/etc/otel-collector-config.yaml \
+  -p 4317:4317 \
+  -p 8889:8889 \
+  otel/opentelemetry-collector:latest \
+  --config=/etc/otel-collector-config.yaml
+```
+
+Then configure Rupy to send data to it:
+```python
+app.enable_telemetry(endpoint="http://localhost:4317", service_name="my-service")
+```
+
+### Environment Variables Reference
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OTEL_ENABLED` | Enable/disable OpenTelemetry | `false` |
+| `OTEL_SERVICE_NAME` | Service name for telemetry | `rupy` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP gRPC endpoint | None |
+| `RUST_LOG` | Log level (trace, debug, info, warn, error) | `info` |
+
 ## Architecture
 
 - **Rust Backend**: Uses Axum web framework for high-performance HTTP handling
 - **Python Bindings**: PyO3 provides seamless Python-Rust interoperability
 - **Async Runtime**: Tokio powers the asynchronous server
+- **Observability**: OpenTelemetry integration for metrics, tracing, and logging
 
 ## License
 
