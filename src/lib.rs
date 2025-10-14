@@ -10,7 +10,20 @@ use pyo3::IntoPyObjectExt;
 use serde_json::json;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
+use std::time::{SystemTime, Instant};
+use tower_http::trace::TraceLayer;
+use tracing::{info, error, warn, span, Level};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use opentelemetry::{
+    global,
+    KeyValue,
+};
+use opentelemetry_sdk::{
+    trace::TracerProvider,
+    metrics::SdkMeterProvider,
+    Resource,
+};
+use opentelemetry_semantic_conventions as semcov;
 
 // Python Request wrapper
 #[pyclass]
@@ -73,21 +86,43 @@ impl Clone for RouteInfo {
     }
 }
 
+// Telemetry configuration
+#[derive(Clone)]
+struct TelemetryConfig {
+    enabled: bool,
+    endpoint: Option<String>,
+    service_name: String,
+}
+
 #[pyclass]
 struct Rupy {
     host: String,
     port: u16,
     routes: Arc<Mutex<Vec<RouteInfo>>>,
+    telemetry_config: Arc<Mutex<TelemetryConfig>>,
 }
 
 #[pymethods]
 impl Rupy {
     #[new]
     fn new() -> Self {
+        // Check environment variables for initial configuration
+        let service_name = std::env::var("OTEL_SERVICE_NAME")
+            .unwrap_or_else(|_| "rupy".to_string());
+        let endpoint = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
+        let enabled = std::env::var("OTEL_ENABLED")
+            .map(|v| v.to_lowercase() == "true" || v == "1")
+            .unwrap_or(false);
+
         Rupy {
             host: "127.0.0.1".to_string(),
             port: 8000,
             routes: Arc::new(Mutex::new(Vec::new())),
+            telemetry_config: Arc::new(Mutex::new(TelemetryConfig {
+                enabled,
+                endpoint,
+                service_name,
+            })),
         }
     }
 
@@ -109,35 +144,138 @@ impl Rupy {
         Ok(())
     }
 
+    /// Enable OpenTelemetry tracing, metrics, and logging
+    #[pyo3(signature = (endpoint=None, service_name=None))]
+    fn enable_telemetry(&self, endpoint: Option<String>, service_name: Option<String>) -> PyResult<()> {
+        let mut config = self.telemetry_config.lock().unwrap();
+        config.enabled = true;
+        if let Some(ep) = endpoint {
+            config.endpoint = Some(ep);
+        }
+        if let Some(name) = service_name {
+            config.service_name = name;
+        }
+        info!("OpenTelemetry telemetry enabled");
+        Ok(())
+    }
+
+    /// Disable OpenTelemetry telemetry
+    fn disable_telemetry(&self) -> PyResult<()> {
+        let mut config = self.telemetry_config.lock().unwrap();
+        config.enabled = false;
+        info!("OpenTelemetry telemetry disabled");
+        Ok(())
+    }
+
+    /// Get current telemetry status
+    fn is_telemetry_enabled(&self) -> PyResult<bool> {
+        let config = self.telemetry_config.lock().unwrap();
+        Ok(config.enabled)
+    }
+
+    /// Set the OpenTelemetry service name
+    fn set_service_name(&self, name: String) -> PyResult<()> {
+        let mut config = self.telemetry_config.lock().unwrap();
+        config.service_name = name;
+        Ok(())
+    }
+
+    /// Set the OpenTelemetry exporter endpoint
+    fn set_telemetry_endpoint(&self, endpoint: String) -> PyResult<()> {
+        let mut config = self.telemetry_config.lock().unwrap();
+        config.endpoint = Some(endpoint);
+        Ok(())
+    }
+
     #[pyo3(signature = (host=None, port=None))]
     fn run(&self, py: Python, host: Option<String>, port: Option<u16>) -> PyResult<()> {
         let host = host.unwrap_or_else(|| self.host.clone());
         let port = port.unwrap_or(self.port);
         let routes = self.routes.clone();
+        let telemetry_config = self.telemetry_config.clone();
 
         // Release the GIL before running the async server
         py.detach(|| {
             // Run the async server in a blocking context
             let runtime = tokio::runtime::Runtime::new().unwrap();
-            runtime.block_on(async { run_server(&host, port, routes).await });
+            runtime.block_on(async { run_server(&host, port, routes, telemetry_config).await });
         });
 
         Ok(())
     }
 }
 
-async fn run_server(host: &str, port: u16, routes: Arc<Mutex<Vec<RouteInfo>>>) {
+// Initialize OpenTelemetry
+fn init_telemetry(config: &TelemetryConfig) -> TelemetryGuard {
+    let service_name = config.service_name.clone();
+    
+    // Create resource with service name
+    let resource = Resource::new(vec![
+        KeyValue::new(semcov::resource::SERVICE_NAME, service_name.clone()),
+    ]);
+
+    // Create basic tracer provider
+    let tracer_provider = TracerProvider::builder()
+        .with_resource(resource.clone())
+        .build();
+    
+    global::set_tracer_provider(tracer_provider);
+
+    // Create basic meter provider
+    let meter_provider = SdkMeterProvider::builder()
+        .with_resource(resource)
+        .build();
+    global::set_meter_provider(meter_provider);
+
+    // Initialize tracing subscriber with basic layers (no OpenTelemetry layer for now to avoid version conflicts)
+    let env_filter = std::env::var("RUST_LOG")
+        .unwrap_or_else(|_| "info".to_string());
+    
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::new(env_filter))
+        .with(tracing_subscriber::fmt::layer().with_target(false).json())
+        .init();
+
+    info!("OpenTelemetry initialized with service: {}", service_name);
+
+    TelemetryGuard
+}
+
+// Guard to ensure telemetry is properly shut down
+struct TelemetryGuard;
+
+impl Drop for TelemetryGuard {
+    fn drop(&mut self) {
+        info!("Shutting down telemetry");
+    }
+}
+
+async fn run_server(host: &str, port: u16, routes: Arc<Mutex<Vec<RouteInfo>>>, telemetry_config: Arc<Mutex<TelemetryConfig>>) {
     // Prepare Python for freethreaded access
     Python::initialize();
 
+    // Initialize telemetry if enabled
+    let config = telemetry_config.lock().unwrap().clone();
+    let _telemetry_guard = if config.enabled {
+        Some(init_telemetry(&config))
+    } else {
+        None
+    };
+
     // Create a router that matches all routes
-    let app = Router::new().fallback(move |method, uri, request| {
-        let routes = routes.clone();
-        async move { handler_request(method, uri, request, routes).await }
-    });
+    let app = Router::new()
+        .fallback(move |method, uri, request| {
+            let routes = routes.clone();
+            let telemetry_config = telemetry_config.clone();
+            async move { 
+                handler_request(method, uri, request, routes, telemetry_config).await 
+            }
+        })
+        .layer(TraceLayer::new_for_http());
 
     let addr = format!("{}:{}", host, port).parse::<SocketAddr>().unwrap();
 
+    info!("Starting Rupy server on http://{}", addr);
     println!("Starting Rupy server on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
@@ -148,7 +286,13 @@ async fn run_server(host: &str, port: u16, routes: Arc<Mutex<Vec<RouteInfo>>>) {
         .await
         .unwrap();
 
+    info!("Server shutdown complete");
     println!("Server shutdown complete");
+    
+    // Shutdown telemetry
+    if config.enabled {
+        global::shutdown_tracer_provider();
+    }
 }
 
 // Handle shutdown signals (Ctrl+C)
@@ -243,9 +387,23 @@ async fn handler_request(
     uri: Uri,
     request: Request,
     routes: Arc<Mutex<Vec<RouteInfo>>>,
+    telemetry_config: Arc<Mutex<TelemetryConfig>>,
 ) -> axum::response::Response {
+    let start_time = Instant::now();
     let path = uri.path().to_string();
-    let method_str = method.as_str();
+    let method_str = method.as_str().to_string();
+
+    // Create a span for this request
+    let span = span!(
+        Level::INFO,
+        "http_request",
+        http.method = %method_str,
+        http.route = %path,
+        http.scheme = "http",
+    );
+    let _enter = span.enter();
+
+    info!("Handling request: {} {}", method_str, path);
 
     // Extract body for methods that support it (POST, PUT, PATCH, DELETE)
     let body = if method == Method::POST
@@ -270,7 +428,7 @@ async fn handler_request(
             // Check if path matches
             if let Some(param_values) = match_route(&path, &route_info.path) {
                 // Check if method is supported by this route
-                if route_info.methods.iter().any(|m| m == method_str) {
+                if route_info.methods.iter().any(|m| m == &method_str) {
                     matched = Some((route_info.clone(), param_values));
                     break;
                 }
@@ -280,10 +438,13 @@ async fn handler_request(
     }; // routes_lock is dropped here
 
     // Now handle the matched route outside the lock
-    if let Some((route_info, param_values)) = matched_route {
-        let response = Python::attach(|py| {
+    let (response, status_code) = if let Some((route_info, param_values)) = matched_route {
+        let handler_span = span!(Level::INFO, "handler_execution", handler.route = %route_info.path);
+        let _handler_enter = handler_span.enter();
+
+        let resp = Python::attach(|py| {
             // Create PyRequest with method, path, and body
-            let py_request = PyRequest::new(method_str.to_string(), path.clone(), body);
+            let py_request = PyRequest::new(method_str.clone(), path.clone(), body);
 
             // Call the handler with the request and path parameters
             let result = if param_values.is_empty() {
@@ -306,49 +467,110 @@ async fn handler_request(
                     if let Ok(py_response) = response.extract::<PyResponse>(py) {
                         let status_code =
                             StatusCode::from_u16(py_response.status).unwrap_or(StatusCode::OK);
-                        (status_code, py_response.body).into_response()
+                        let status_u16 = status_code.as_u16();
+                        ((status_code, py_response.body).into_response(), status_u16)
                     } else {
                         // Try to convert to string
                         if let Ok(response_str) = response.extract::<String>(py) {
-                            (StatusCode::OK, response_str).into_response()
+                            ((StatusCode::OK, response_str).into_response(), 200)
                         } else {
+                            error!("Invalid response from handler");
                             (
-                                StatusCode::INTERNAL_SERVER_ERROR,
-                                "Invalid response from handler",
+                                (
+                                    StatusCode::INTERNAL_SERVER_ERROR,
+                                    "Invalid response from handler",
+                                )
+                                    .into_response(),
+                                500
                             )
-                                .into_response()
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("Error calling Python handler: {:?}", e);
-                    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response()
+                    error!("Error calling Python handler: {:?}", e);
+                    ((StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error").into_response(), 500)
                 }
             }
         });
 
-        return response;
+        resp
+    } else {
+        // No route matched or method not supported, return 404
+        let resp = handler_404(
+            Uri::from_maybe_shared(path.clone()).unwrap(),
+        )
+        .await;
+        (resp, 404)
+    };
+
+    // Record metrics
+    let duration = start_time.elapsed();
+    let is_enabled = {
+        let config = telemetry_config.lock().unwrap();
+        config.enabled
+    };
+    
+    if is_enabled {
+        let service_name = {
+            let config = telemetry_config.lock().unwrap();
+            config.service_name.clone()
+        };
+        
+        // Get meter and record metrics (leak the string to get 'static lifetime)
+        let meter = global::meter(Box::leak(service_name.into_boxed_str()));
+        let counter = meter
+            .u64_counter("http.server.requests")
+            .with_description("Total number of HTTP requests")
+            .build();
+        let histogram = meter
+            .f64_histogram("http.server.duration")
+            .with_description("HTTP request duration in seconds")
+            .with_unit("s")
+            .build();
+
+        counter.add(
+            1,
+            &[
+                KeyValue::new("http.method", method_str.clone()),
+                KeyValue::new("http.route", path.clone()),
+                KeyValue::new("http.status_code", status_code as i64),
+            ],
+        );
+
+        histogram.record(
+            duration.as_secs_f64(),
+            &[
+                KeyValue::new("http.method", method_str),
+                KeyValue::new("http.route", path),
+                KeyValue::new("http.status_code", status_code as i64),
+            ],
+        );
     }
 
-    // No route matched or method not supported, return 404
-    handler_404(
-        method,
-        Uri::from_maybe_shared(path).unwrap(),
-        Request::default(),
-    )
-    .await
+    info!(
+        "Request completed: {} - Duration: {:?}",
+        status_code,
+        duration
+    );
+
+    response
 }
 
-async fn handler_404(method: Method, uri: Uri, _request: Request) -> axum::response::Response {
+async fn handler_404(uri: Uri) -> axum::response::Response {
     // Log the request in JSON format
     let timestamp = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_secs();
 
+    warn!(
+        path = %uri.path(),
+        status = 404,
+        "Route not found"
+    );
+
     let log_entry = json!({
         "timestamp": timestamp,
-        "method": method.as_str(),
         "path": uri.path(),
         "status": 404,
         "message": "Not Found"
