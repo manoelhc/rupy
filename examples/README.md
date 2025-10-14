@@ -82,6 +82,60 @@ curl -I http://127.0.0.1:8000/resource                   # HEAD
 curl -X OPTIONS http://127.0.0.1:8000/resource           # OPTIONS
 ```
 
+### 5. Telemetry Example (`telemetry_example.py`)
+Demonstrates OpenTelemetry integration for metrics, tracing, and logging.
+
+**Run:**
+```bash
+python examples/telemetry_example.py
+```
+
+### 6. CORS Middleware (`cors_middleware.py`)
+Example demonstrating Cross-Origin Resource Sharing (CORS) middleware.
+
+**Features:**
+- Middleware execution demonstration
+- OPTIONS preflight request handling
+- Request logging
+
+**Run:**
+```bash
+python examples/cors_middleware.py
+```
+
+**Test:**
+```bash
+curl http://127.0.0.1:8000/
+curl http://127.0.0.1:8000/api/data
+curl -X OPTIONS http://127.0.0.1:8000/api/data
+curl -X POST -d '{"test": "data"}' http://127.0.0.1:8000/api/data
+```
+
+### 7. JWT Authentication Middleware (`jwt_middleware.py`)
+Example demonstrating JWT-based authentication middleware.
+
+**Features:**
+- Public vs protected routes
+- Early response for unauthorized access
+- Simulated token validation
+
+**Run:**
+```bash
+python examples/jwt_middleware.py
+```
+
+**Test:**
+```bash
+# Public endpoints (no auth)
+curl http://127.0.0.1:8000/
+curl http://127.0.0.1:8000/public
+curl -X POST http://127.0.0.1:8000/login
+
+# Protected endpoints (returns 401)
+curl http://127.0.0.1:8000/protected/data
+curl http://127.0.0.1:8000/protected/profile
+```
+
 ## Notes
 
 - All examples run on `http://127.0.0.1:8000` by default
