@@ -7,6 +7,7 @@ A high-performance web framework for Python, powered by Rust and Axum.
 - ✅ High-performance Rust backend with Axum web framework
 - ✅ Simple and intuitive Python API
 - ✅ Support for all standard HTTP methods (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS)
+- ✅ Convenient method-specific decorators (`@app.get()`, `@app.post()`, etc.)
 - ✅ Dynamic route parameters (e.g., `/user/<username>`)
 - ✅ Request body parsing for POST, PUT, PATCH, and DELETE
 - ✅ Async/await support
@@ -116,41 +117,60 @@ Rupy supports all standard HTTP methods:
 - **HEAD**: Retrieve headers only
 - **OPTIONS**: Get supported methods for a resource
 
-Example with different HTTP methods:
+#### Method-Specific Decorators
+
+For convenience, Rupy provides method-specific decorators that make your code more readable:
 
 ```python
 from rupy import Rupy, Request, Response
 
 app = Rupy()
 
-# GET request
-@app.route("/items", methods=["GET"])
+# Instead of @app.route("/items", methods=["GET"])
+@app.get("/items")
 def list_items(request: Request) -> Response:
     return Response("List of items")
 
-# POST request - create new item
-@app.route("/items", methods=["POST"])
+# Instead of @app.route("/items", methods=["POST"])
+@app.post("/items")
 def create_item(request: Request) -> Response:
     return Response(f"Created: {request.body}")
 
-# PUT request - update entire item
-@app.route("/items/<item_id>", methods=["PUT"])
+# Available decorators for all HTTP methods:
+@app.put("/items/<item_id>")
 def update_item(request: Request, item_id: str) -> Response:
     return Response(f"Updated item {item_id}: {request.body}")
 
-# PATCH request - partial update
-@app.route("/items/<item_id>", methods=["PATCH"])
+@app.patch("/items/<item_id>")
 def patch_item(request: Request, item_id: str) -> Response:
     return Response(f"Patched item {item_id}: {request.body}")
 
-# DELETE request
-@app.route("/items/<item_id>", methods=["DELETE"])
+@app.delete("/items/<item_id>")
 def delete_item(request: Request, item_id: str) -> Response:
     return Response(f"Deleted item {item_id}")
+
+@app.head("/items")
+def head_items(request: Request) -> Response:
+    return Response("Headers only")
+
+@app.options("/items")
+def options_items(request: Request) -> Response:
+    return Response("OPTIONS response")
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=8000)
 ```
+
+Available method-specific decorators:
+- `@app.get(path)` - for GET requests
+- `@app.post(path)` - for POST requests
+- `@app.put(path)` - for PUT requests
+- `@app.patch(path)` - for PATCH requests
+- `@app.delete(path)` - for DELETE requests
+- `@app.head(path)` - for HEAD requests
+- `@app.options(path)` - for OPTIONS requests
+
+You can still use `@app.route(path, methods=[...])` when you need to handle multiple methods with the same handler.
 
 ### Dynamic Route Parameters
 
