@@ -127,6 +127,43 @@ def _new_middleware(self, handler: Optional[Callable] = None):
 _RupyBase.route = _new_route
 _RupyBase.middleware = _new_middleware
 
+
+# Add method-specific decorators
+def _create_method_decorator(method: str):
+    """
+    Creates a method-specific decorator (e.g., get, post, put, etc.)
+
+    Args:
+        method: HTTP method name (e.g., "GET", "POST")
+
+    Returns:
+        Method decorator function
+    """
+
+    def method_decorator(self, path: str):
+        """
+        Decorator to register a route handler for a specific HTTP method.
+
+        Args:
+            path: The URL path pattern (e.g., "/", "/user/<username>")
+
+        Returns:
+            Decorator function
+        """
+        return _route_decorator(self, path, [method])
+
+    return method_decorator
+
+
+# Add method-specific decorators to the Rupy class
+_RupyBase.get = _create_method_decorator("GET")
+_RupyBase.post = _create_method_decorator("POST")
+_RupyBase.put = _create_method_decorator("PUT")
+_RupyBase.patch = _create_method_decorator("PATCH")
+_RupyBase.delete = _create_method_decorator("DELETE")
+_RupyBase.head = _create_method_decorator("HEAD")
+_RupyBase.options = _create_method_decorator("OPTIONS")
+
 # Export with the original name
 Rupy = _RupyBase
 
