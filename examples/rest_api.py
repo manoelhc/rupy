@@ -14,15 +14,18 @@ items = {
     "2": {"id": "2", "name": "Item 2", "status": "active"},
 }
 
+
 @app.route("/", methods=["GET"])
 def index(request: Request) -> Response:
     return Response("RESTful API Demo. Try /items")
+
 
 @app.route("/items", methods=["GET"])
 def list_items(request: Request) -> Response:
     """List all items"""
     items_list = ", ".join([f"{k}: {v['name']}" for k, v in items.items()])
     return Response(f"Items: {items_list}")
+
 
 @app.route("/items/<item_id>", methods=["GET"])
 def get_item(request: Request, item_id: str) -> Response:
@@ -32,6 +35,7 @@ def get_item(request: Request, item_id: str) -> Response:
         return Response(f"Item {item_id}: {item['name']} (status: {item['status']})")
     return Response(f"Item {item_id} not found", 404)
 
+
 @app.route("/items", methods=["POST"])
 def create_item(request: Request) -> Response:
     """Create a new item"""
@@ -40,6 +44,7 @@ def create_item(request: Request) -> Response:
     items[new_id] = {"id": new_id, "name": f"Item {new_id}", "status": "active"}
     return Response(f"Created item {new_id} with data: {request.body}", 201)
 
+
 @app.route("/items/<item_id>", methods=["PUT"])
 def update_item(request: Request, item_id: str) -> Response:
     """Replace an item entirely"""
@@ -47,6 +52,7 @@ def update_item(request: Request, item_id: str) -> Response:
         items[item_id] = {"id": item_id, "name": "Updated Item", "status": "active"}
         return Response(f"Updated item {item_id} with: {request.body}")
     return Response(f"Item {item_id} not found", 404)
+
 
 @app.route("/items/<item_id>", methods=["PATCH"])
 def patch_item(request: Request, item_id: str) -> Response:
@@ -57,6 +63,7 @@ def patch_item(request: Request, item_id: str) -> Response:
         return Response(f"Patched item {item_id} with: {request.body}")
     return Response(f"Item {item_id} not found", 404)
 
+
 @app.route("/items/<item_id>", methods=["DELETE"])
 def delete_item(request: Request, item_id: str) -> Response:
     """Delete an item"""
@@ -64,6 +71,7 @@ def delete_item(request: Request, item_id: str) -> Response:
         del items[item_id]
         return Response(f"Deleted item {item_id}")
     return Response(f"Item {item_id} not found", 404)
+
 
 if __name__ == "__main__":
     print("Starting RESTful API on http://127.0.0.1:8000")
@@ -73,11 +81,11 @@ if __name__ == "__main__":
     print("\n  # Get specific item")
     print("  curl http://127.0.0.1:8000/items/1")
     print("\n  # Create new item")
-    print("  curl -X POST -d '{\"name\": \"New Item\"}' http://127.0.0.1:8000/items")
+    print('  curl -X POST -d \'{"name": "New Item"}\' http://127.0.0.1:8000/items')
     print("\n  # Update item")
-    print("  curl -X PUT -d '{\"name\": \"Updated\"}' http://127.0.0.1:8000/items/1")
+    print('  curl -X PUT -d \'{"name": "Updated"}\' http://127.0.0.1:8000/items/1')
     print("\n  # Patch item")
-    print("  curl -X PATCH -d '{\"status\": \"inactive\"}' http://127.0.0.1:8000/items/1")
+    print('  curl -X PATCH -d \'{"status": "inactive"}\' http://127.0.0.1:8000/items/1')
     print("\n  # Delete item")
     print("  curl -X DELETE http://127.0.0.1:8000/items/1")
     app.run(host="127.0.0.1", port=8000)

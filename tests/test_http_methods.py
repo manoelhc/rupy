@@ -21,7 +21,7 @@ class TestRupyHTTPMethods(unittest.TestCase):
         """Start the Rupy server in a separate thread"""
         cls.app = Rupy()
         cls.base_url = "http://127.0.0.1:8888"
-        
+
         # Define routes for testing
         @cls.app.route("/", methods=["GET"])
         def index(request: Request) -> Response:
@@ -61,12 +61,10 @@ class TestRupyHTTPMethods(unittest.TestCase):
 
         # Start server in a daemon thread
         cls.server_thread = threading.Thread(
-            target=cls.app.run,
-            kwargs={"host": "127.0.0.1", "port": 8888},
-            daemon=True
+            target=cls.app.run, kwargs={"host": "127.0.0.1", "port": 8888}, daemon=True
         )
         cls.server_thread.start()
-        
+
         # Give the server time to start
         time.sleep(2)
 
@@ -166,32 +164,32 @@ class TestRupyRouteDecorator(unittest.TestCase):
     def test_route_decorator_with_get(self):
         """Test route decorator with GET method"""
         app = Rupy()
-        
+
         @app.route("/test", methods=["GET"])
         def handler(request: Request) -> Response:
             return Response("test")
-        
+
         # Just verify the decorator works without errors
         self.assertTrue(True)
 
     def test_route_decorator_with_multiple_methods(self):
         """Test route decorator with multiple methods"""
         app = Rupy()
-        
+
         @app.route("/multi", methods=["GET", "POST", "PUT"])
         def handler(request: Request) -> Response:
             return Response("multi")
-        
+
         self.assertTrue(True)
 
     def test_route_decorator_with_parameters(self):
         """Test route decorator with dynamic parameters"""
         app = Rupy()
-        
+
         @app.route("/item/<id>", methods=["GET"])
         def handler(request: Request, id: str) -> Response:
             return Response(f"Item {id}")
-        
+
         self.assertTrue(True)
 
 

@@ -533,7 +533,10 @@ async fn handler_request(
                             let status_code =
                                 StatusCode::from_u16(py_response.status).unwrap_or(StatusCode::OK);
                             let status_u16 = status_code.as_u16();
-                            return Some(((status_code, py_response.body).into_response(), status_u16));
+                            return Some((
+                                (status_code, py_response.body).into_response(),
+                                status_u16,
+                            ));
                         }
                         // Otherwise, middleware might have modified the request
                         // Try to extract updated request
@@ -560,7 +563,10 @@ async fn handler_request(
     if let Some((response, status_code)) = middleware_result {
         let duration = start_time.elapsed();
         record_metrics(&telemetry_config, &method_str, &path, status_code, duration);
-        info!("Request completed: {} - Duration: {:?}", status_code, duration);
+        info!(
+            "Request completed: {} - Duration: {:?}",
+            status_code, duration
+        );
         return response;
     }
 

@@ -33,24 +33,23 @@ def rate_limit_middleware(request: Request):
     Limits requests to 10 per minute per endpoint.
     """
     global request_counts, last_reset
-    
+
     # Reset counts every 60 seconds
     if time.time() - last_reset > 60:
         request_counts = {}
         last_reset = time.time()
-    
+
     # Track request count
     path = request.path
     request_counts[path] = request_counts.get(path, 0) + 1
-    
+
     # Check rate limit
     if request_counts[path] > 10:
         print(f"[RATE LIMIT] Blocked {path} - too many requests")
         return Response(
-            '{"error": "Rate limit exceeded. Try again later."}',
-            status=429
+            '{"error": "Rate limit exceeded. Try again later."}', status=429
         )
-    
+
     print(f"[RATE LIMIT] {path} - Request {request_counts[path]}/10")
     return request
 
@@ -65,11 +64,8 @@ def auth_middleware(request: Request):
         print(f"[AUTH] Checking authentication for {request.path}")
         # In real implementation, check for valid token/session
         # For demo, always block admin routes
-        return Response(
-            '{"error": "Unauthorized - Admin access required"}',
-            status=401
-        )
-    
+        return Response('{"error": "Unauthorized - Admin access required"}', status=401)
+
     return request
 
 
@@ -86,7 +82,9 @@ def public_endpoint(request: Request) -> Response:
 
 @app.route("/status", methods=["GET"])
 def status_endpoint(request: Request) -> Response:
-    return Response(f'{{"requests": {dict(request_counts)}, "uptime": {int(time.time() - last_reset)}}}')
+    return Response(
+        f'{{"requests": {dict(request_counts)}, "uptime": {int(time.time() - last_reset)}}}'
+    )
 
 
 # Protected routes
@@ -121,5 +119,5 @@ if __name__ == "__main__":
     print("\nRate limit test (run >10 times quickly):")
     print("  for i in {1..15}; do curl http://127.0.0.1:8000/public; done")
     print("\n" + "=" * 70)
-    
+
     app.run(host="127.0.0.1", port=8000)
