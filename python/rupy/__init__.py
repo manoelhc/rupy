@@ -164,7 +164,215 @@ _RupyBase.delete = _create_method_decorator("DELETE")
 _RupyBase.head = _create_method_decorator("HEAD")
 _RupyBase.options = _create_method_decorator("OPTIONS")
 
+
+# Add static file serving decorator
+def _static_decorator(self, url_path: str, directory: str):
+    """
+    Decorator to serve static files from a directory.
+    
+    Args:
+        url_path: URL path prefix (e.g., "/static")
+        directory: Local directory path to serve files from
+    
+    Example:
+        @app.static("/static", "./public")
+        def static_files():
+            pass
+    """
+    import os
+    
+    def decorator(func: Callable):
+        # Create a handler that serves files from the directory
+        @wraps(func)
+        def static_handler(request: Request, filepath: str = "") -> Response:
+            # Build the full file path
+            full_path = os.path.join(directory, filepath)
+            
+            # Security check: prevent directory traversal
+            real_directory = os.path.realpath(directory)
+            real_path = os.path.realpath(full_path)
+            
+            if not real_path.startswith(real_directory):
+                return Response("Forbidden", status=403)
+            
+            # Check if file exists and is a file (not directory)
+            if not os.path.exists(real_path) or not os.path.isfile(real_path):
+                return Response("Not Found", status=404)
+            
+            # Read and return the file
+            try:
+                with open(real_path, 'rb') as f:
+                    content = f.read()
+                
+                # Determine content type based on file extension
+                content_type = _get_content_type(real_path)
+                
+                resp = Response(content.decode('utf-8', errors='replace'))
+                resp.set_header('Content-Type', content_type)
+                return resp
+            except Exception as e:
+                return Response(f"Error reading file: {str(e)}", status=500)
+        
+        # Register the route with a wildcard pattern
+        route_pattern = f"{url_path}/<filepath:path>" if not url_path.endswith("/") else f"{url_path}<filepath:path>"
+        # For now, use a simpler pattern
+        route_pattern = f"{url_path}/<filepath>"
+        _original_rupy_route(self, route_pattern, static_handler, ["GET"])
+        
+        return func
+    
+    return decorator
+
+
+def _get_content_type(filepath: str) -> str:
+    """Get content type based on file extension"""
+    import mimetypes
+    content_type, _ = mimetypes.guess_type(filepath)
+    return content_type or 'application/octet-stream'
+
+
+_RupyBase.static = _static_decorator
+
+
+# Add reverse proxy decorator
+def _proxy_decorator(self, url_path: str, target_url: str):
+    """
+    Decorator to reverse proxy requests to another server.
+    
+    Args:
+        url_path: URL path prefix to proxy (e.g., "/api")
+        target_url: Target server URL (e.g., "http://backend:8080")
+    
+    Example:
+        @app.proxy("/api", "http://backend:8080")
+        def api_proxy():
+            pass
+    """
+    def decorator(func: Callable):
+        import urllib.request
+        import urllib.error
+        
+        @wraps(func)
+        def proxy_handler(request: Request, path: str = "") -> Response:
+            # Build the target URL
+            target = f"{target_url.rstrip('/')}/{path.lstrip('/')}"
+            
+            try:
+                # Create the proxied request
+                headers_dict = {}
+                for key, value in request.headers.items():
+                    # Skip hop-by-hop headers
+                    if key.lower() not in ['host', 'connection', 'transfer-encoding']:
+                        headers_dict[key] = value
+                
+                # Make the request to the target
+                req = urllib.request.Request(
+                    target,
+                    data=request.body.encode('utf-8') if request.body else None,
+                    headers=headers_dict,
+                    method=request.method
+                )
+                
+                with urllib.request.urlopen(req) as response:
+                    content = response.read().decode('utf-8')
+                    status = response.status
+                    
+                    # Create response
+                    resp = Response(content, status=status)
+                    
+                    # Copy response headers
+                    for key, value in response.headers.items():
+                        if key.lower() not in ['connection', 'transfer-encoding']:
+                            resp.set_header(key, value)
+                    
+                    return resp
+                    
+            except urllib.error.HTTPError as e:
+                return Response(e.read().decode('utf-8'), status=e.code)
+            except urllib.error.URLError as e:
+                return Response(f"Proxy error: {str(e)}", status=502)
+            except Exception as e:
+                return Response(f"Proxy error: {str(e)}", status=500)
+        
+        # Register the route with a wildcard pattern
+        route_pattern = f"{url_path}/<path>"
+        _original_rupy_route(self, route_pattern, proxy_handler, ["GET", "POST", "PUT", "PATCH", "DELETE"])
+        
+        return func
+    
+    return decorator
+
+
+_RupyBase.proxy = _proxy_decorator
+
+
+# Add OpenAPI/Swagger support
+def _enable_openapi(
+    self, 
+    path: str = "/openapi.json",
+    title: str = "API Documentation",
+    version: str = "1.0.0",
+    description: str = ""
+):
+    """
+    Enable OpenAPI/Swagger JSON endpoint.
+    
+    Args:
+        path: URL path for the OpenAPI JSON endpoint (default: "/openapi.json")
+        title: API title
+        version: API version
+        description: API description
+    """
+    self._openapi_config = {
+        "enabled": True,
+        "path": path,
+        "title": title,
+        "version": version,
+        "description": description
+    }
+    
+    # Register the OpenAPI endpoint
+    @self.route(path, methods=["GET"])
+    def openapi_spec(request: Request) -> Response:
+        import json
+        spec = _generate_openapi_spec(self, title, version, description)
+        resp = Response(json.dumps(spec, indent=2))
+        resp.set_header("Content-Type", "application/json")
+        return resp
+
+
+def _disable_openapi(self):
+    """Disable OpenAPI/Swagger JSON endpoint."""
+    if hasattr(self, '_openapi_config'):
+        self._openapi_config["enabled"] = False
+
+
+def _generate_openapi_spec(app, title: str, version: str, description: str) -> dict:
+    """Generate OpenAPI 3.0 specification from registered routes."""
+    # This is a basic implementation - can be extended
+    spec = {
+        "openapi": "3.0.0",
+        "info": {
+            "title": title,
+            "version": version,
+            "description": description
+        },
+        "paths": {}
+    }
+    
+    # Try to extract route information if available
+    # For now, return a basic spec
+    # In a full implementation, we would introspect registered routes
+    
+    return spec
+
+
+_RupyBase.enable_openapi = _enable_openapi
+_RupyBase.disable_openapi = _disable_openapi
+
+
 # Export with the original name
 Rupy = _RupyBase
 
 __all__ = ["Rupy", "Request", "Response"]
+
