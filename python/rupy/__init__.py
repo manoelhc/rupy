@@ -307,6 +307,8 @@ _RupyBase.proxy = _proxy_decorator
 
 
 # Add OpenAPI/Swagger support
+_openapi_configs = {}  # Store configs per app instance
+
 def _enable_openapi(
     self, 
     path: str = "/openapi.json",
@@ -323,7 +325,8 @@ def _enable_openapi(
         version: API version
         description: API description
     """
-    self._openapi_config = {
+    # Store config using object id as key
+    _openapi_configs[id(self)] = {
         "enabled": True,
         "path": path,
         "title": title,
@@ -343,8 +346,9 @@ def _enable_openapi(
 
 def _disable_openapi(self):
     """Disable OpenAPI/Swagger JSON endpoint."""
-    if hasattr(self, '_openapi_config'):
-        self._openapi_config["enabled"] = False
+    config_id = id(self)
+    if config_id in _openapi_configs:
+        _openapi_configs[config_id]["enabled"] = False
 
 
 def _generate_openapi_spec(app, title: str, version: str, description: str) -> dict:
