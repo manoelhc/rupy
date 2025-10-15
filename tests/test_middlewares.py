@@ -154,7 +154,7 @@ class TestMiddlewareWithRoutes(unittest.TestCase):
     def setUpClass(cls):
         """Start server with middleware and routes"""
         cls.app = Rupy()
-        cls.base_url = "http://127.0.0.1:8890"
+        cls.base_url = "http://127.0.0.1:8892"
 
         cls.request_count = 0
 
@@ -174,7 +174,7 @@ class TestMiddlewareWithRoutes(unittest.TestCase):
 
         # Start server
         cls.server_thread = threading.Thread(
-            target=cls.app.run, kwargs={"host": "127.0.0.1", "port": 8890}, daemon=True
+            target=cls.app.run, kwargs={"host": "127.0.0.1", "port": 8892}, daemon=True
         )
         cls.server_thread.start()
         time.sleep(2)
