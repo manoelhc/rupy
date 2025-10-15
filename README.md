@@ -255,10 +255,19 @@ def jwt_auth_middleware(request: Request):
     return request
 ```
 
-For complete examples, see:
-- `examples/cors_middleware.py` - CORS protection
-- `examples/jwt_middleware.py` - JWT authentication
-- `examples/combined_middlewares.py` - Multiple middlewares
+For complete production-ready examples, see:
+- `examples/jwt_middleware.py` - JWT authentication with PyJWT library
+- `examples/cors_middleware.py` - CORS with configurable origins and credentials
+- `examples/geo_blocking_middleware.py` - IP-based geographical access control
+- `examples/rate_limiting_middleware.py` - Rate limiting by IP and User-Agent
+- `examples/combined_middlewares.py` - Multiple middlewares working together
+- `examples/MIDDLEWARE_README.md` - Comprehensive middleware documentation
+
+All middleware examples feature:
+- Production-ready implementations with real libraries
+- Security best practices and error handling
+- Detailed documentation and usage examples
+- Testing commands and load testing guidance
 
 ### Cookies and Authentication
 
