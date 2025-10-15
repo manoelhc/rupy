@@ -97,7 +97,7 @@ impl PyRequest {
     }
 
     /// Set the auth token in the Authorization header (Bearer token)
-    #[setter]
+    #[setter(auth_token)]
     fn set_auth_token(&mut self, _py: Python, token: String) -> PyResult<()> {
         self.headers.insert("authorization".to_string(), format!("Bearer {}", token));
         Ok(())

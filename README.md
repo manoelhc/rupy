@@ -14,6 +14,11 @@ A high-performance web framework for Python, powered by Rust and Axum.
 - ✅ JSON-formatted request logging
 - ✅ OpenTelemetry support for metrics, tracing, and logging
 - ✅ Middleware support for request/response processing
+- ✅ Cookie support (get/set cookies in requests and responses)
+- ✅ Authentication token support (Bearer token helper)
+- ✅ Static file serving via decorators
+- ✅ Reverse proxy support via decorators
+- ✅ OpenAPI/Swagger JSON endpoint
 
 ## Installation
 
@@ -253,6 +258,167 @@ def jwt_auth_middleware(request: Request):
 For complete examples, see:
 - `examples/cors_middleware.py` - CORS protection
 - `examples/jwt_middleware.py` - JWT authentication
+- `examples/combined_middlewares.py` - Multiple middlewares
+
+### Cookies and Authentication
+
+Rupy provides built-in support for working with cookies and Bearer authentication tokens.
+
+#### Working with Cookies
+
+```python
+from rupy import Rupy, Request, Response
+
+app = Rupy()
+
+@app.route("/login", methods=["POST"])
+def login(request: Request) -> Response:
+    resp = Response('{"message": "Login successful"}')
+    
+    # Set a cookie with options
+    resp.set_cookie(
+        "session_id",
+        "abc123",
+        max_age=3600,        # Expires in 1 hour
+        http_only=True,      # Not accessible via JavaScript
+        secure=True,         # Only sent over HTTPS
+        same_site="Lax"      # CSRF protection
+    )
+    
+    return resp
+
+@app.route("/profile", methods=["GET"])
+def profile(request: Request) -> Response:
+    # Read a cookie
+    session_id = request.get_cookie("session_id")
+    
+    if not session_id:
+        return Response("Not logged in", status=401)
+    
+    return Response(f"Session: {session_id}")
+
+@app.route("/logout", methods=["POST"])
+def logout(request: Request) -> Response:
+    resp = Response('{"message": "Logged out"}')
+    
+    # Delete a cookie
+    resp.delete_cookie("session_id")
+    
+    return resp
+```
+
+#### Authentication Tokens
+
+```python
+@app.route("/protected", methods=["GET"])
+def protected(request: Request) -> Response:
+    # Get Bearer token from Authorization header
+    token = request.auth_token
+    
+    if not token:
+        return Response("Unauthorized", status=401)
+    
+    # Validate token (implement your own validation logic)
+    if token == "valid-token":
+        return Response("Access granted")
+    else:
+        return Response("Invalid token", status=401)
+
+@app.middleware
+def auth_middleware(request: Request):
+    """Add authentication token in middleware"""
+    if request.path.startswith("/internal"):
+        request.set_auth_token("internal-service-token")
+    return request
+```
+
+For complete examples, see:
+- `examples/cookies_auth_example.py` - Cookie and auth token handling
+
+### Static File Serving
+
+Serve static files from a directory using the `@app.static()` decorator.
+
+```python
+from rupy import Rupy, Request, Response
+
+app = Rupy()
+
+# Serve files from ./public directory at /static path
+@app.static("/static", "./public")
+def static_files():
+    pass
+
+# Now files in ./public are accessible at /static/<filename>
+# Example: ./public/style.css -> http://localhost:8000/static/style.css
+```
+
+The static file server includes:
+- Automatic content-type detection
+- Directory traversal protection
+- Support for all common file types
+
+For a complete example, see:
+- `examples/static_files_example.py` - Static file serving
+
+### Reverse Proxy
+
+Proxy requests to another backend service using the `@app.proxy()` decorator.
+
+```python
+from rupy import Rupy, Request, Response
+
+app = Rupy()
+
+# Proxy all /api/* requests to backend service
+@app.proxy("/api", "http://backend:8080")
+def api_proxy():
+    pass
+
+# Now requests to /api/* are forwarded to http://backend:8080/*
+# Example: /api/users -> http://backend:8080/users
+```
+
+The reverse proxy:
+- Forwards all HTTP methods (GET, POST, PUT, PATCH, DELETE)
+- Preserves request headers and body
+- Returns response headers and body from the backend
+
+For a complete example, see:
+- `examples/reverse_proxy_example.py` - Reverse proxy with backend
+
+### OpenAPI/Swagger Support
+
+Enable OpenAPI documentation for your API.
+
+```python
+from rupy import Rupy, Request, Response
+
+app = Rupy()
+
+# Enable OpenAPI endpoint
+app.enable_openapi(
+    path="/openapi.json",
+    title="My API",
+    version="1.0.0",
+    description="API documentation"
+)
+
+@app.route("/users", methods=["GET"])
+def list_users(request: Request) -> Response:
+    """List all users - this docstring can be used for API docs"""
+    return Response('[{"id": 1, "name": "Alice"}]')
+
+# Access the OpenAPI spec at http://localhost:8000/openapi.json
+```
+
+To disable the OpenAPI endpoint:
+```python
+app.disable_openapi()
+```
+
+For a complete example, see:
+- `examples/openapi_example.py` - OpenAPI documentation
 
 ### Testing Your Application
 
