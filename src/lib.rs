@@ -30,17 +30,19 @@ pub struct PyRequest {
     #[pyo3(get)]
     body: String,
     headers: HashMap<String, String>,
+    cookies: HashMap<String, String>,
 }
 
 #[pymethods]
 impl PyRequest {
     #[new]
     fn new(method: String, path: String, body: String) -> Self {
-        PyRequest { 
-            method, 
-            path, 
+        PyRequest {
+            method,
+            path,
             body,
             headers: HashMap::new(),
+            cookies: HashMap::new(),
         }
     }
 
@@ -60,6 +62,46 @@ impl PyRequest {
             dict.set_item(key, value)?;
         }
         Ok(dict.into())
+    }
+
+    /// Get a cookie value by name
+    fn get_cookie(&self, _py: Python, name: String) -> PyResult<Option<String>> {
+        Ok(self.cookies.get(&name).cloned())
+    }
+
+    /// Set a cookie value (for middleware/handler use)
+    fn set_cookie(&mut self, _py: Python, name: String, value: String) -> PyResult<()> {
+        self.cookies.insert(name, value);
+        Ok(())
+    }
+
+    /// Get all cookies as a dictionary
+    #[getter]
+    fn cookies(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let dict = PyDict::new(py);
+        for (key, value) in &self.cookies {
+            dict.set_item(key, value)?;
+        }
+        Ok(dict.into())
+    }
+
+    /// Get the auth token from the Authorization header (Bearer token)
+    #[getter]
+    fn auth_token(&self, _py: Python) -> PyResult<Option<String>> {
+        if let Some(auth_header) = self.headers.get("authorization") {
+            if let Some(token) = auth_header.strip_prefix("Bearer ") {
+                return Ok(Some(token.to_string()));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Set the auth token in the Authorization header (Bearer token)
+    #[setter(auth_token)]
+    fn set_auth_token(&mut self, _py: Python, token: String) -> PyResult<()> {
+        self.headers
+            .insert("authorization".to_string(), format!("Bearer {}", token));
+        Ok(())
     }
 }
 
@@ -72,6 +114,7 @@ pub struct PyResponse {
     #[pyo3(get)]
     status: u16,
     headers: HashMap<String, String>,
+    cookies: Vec<String>, // Store Set-Cookie headers
 }
 
 #[pymethods]
@@ -83,6 +126,7 @@ impl PyResponse {
             body,
             status: status.unwrap_or(200),
             headers: HashMap::new(),
+            cookies: Vec::new(),
         }
     }
 
@@ -102,6 +146,86 @@ impl PyResponse {
             dict.set_item(key, value)?;
         }
         Ok(dict.into())
+    }
+
+    /// Set a cookie on the response
+    ///
+    /// Args:
+    ///     name: Cookie name
+    ///     value: Cookie value
+    ///     max_age: Optional max age in seconds
+    ///     path: Optional cookie path (default: "/")
+    ///     domain: Optional domain
+    ///     secure: Whether cookie should only be sent over HTTPS
+    ///     http_only: Whether cookie should be HTTP-only (not accessible via JavaScript)
+    ///     same_site: SameSite attribute ("Strict", "Lax", or "None")
+    #[pyo3(signature = (name, value, max_age=None, path=None, domain=None, secure=false, http_only=false, same_site=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn set_cookie(
+        &mut self,
+        _py: Python,
+        name: String,
+        value: String,
+        max_age: Option<i64>,
+        path: Option<String>,
+        domain: Option<String>,
+        secure: bool,
+        http_only: bool,
+        same_site: Option<String>,
+    ) -> PyResult<()> {
+        let mut cookie = format!("{}={}", name, value);
+
+        if let Some(age) = max_age {
+            cookie.push_str(&format!("; Max-Age={}", age));
+        }
+
+        cookie.push_str(&format!(
+            "; Path={}",
+            path.unwrap_or_else(|| "/".to_string())
+        ));
+
+        if let Some(d) = domain {
+            cookie.push_str(&format!("; Domain={}", d));
+        }
+
+        if secure {
+            cookie.push_str("; Secure");
+        }
+
+        if http_only {
+            cookie.push_str("; HttpOnly");
+        }
+
+        if let Some(ss) = same_site {
+            cookie.push_str(&format!("; SameSite={}", ss));
+        }
+
+        self.cookies.push(cookie);
+        Ok(())
+    }
+
+    /// Delete a cookie by setting it to expire immediately
+    #[pyo3(signature = (name, path=None, domain=None))]
+    fn delete_cookie(
+        &mut self,
+        _py: Python,
+        name: String,
+        path: Option<String>,
+        domain: Option<String>,
+    ) -> PyResult<()> {
+        let mut cookie = format!("{}=; Max-Age=0", name);
+
+        cookie.push_str(&format!(
+            "; Path={}",
+            path.unwrap_or_else(|| "/".to_string())
+        ));
+
+        if let Some(d) = domain {
+            cookie.push_str(&format!("; Domain={}", d));
+        }
+
+        self.cookies.push(cookie);
+        Ok(())
     }
 }
 
@@ -507,6 +631,48 @@ fn record_metrics(
     }
 }
 
+// Parse cookies from Cookie header
+fn parse_cookies(cookie_header: &str) -> HashMap<String, String> {
+    let mut cookies = HashMap::new();
+    for cookie in cookie_header.split(';') {
+        let cookie = cookie.trim();
+        if let Some(eq_pos) = cookie.find('=') {
+            let name = cookie[..eq_pos].trim().to_string();
+            let value = cookie[eq_pos + 1..].trim().to_string();
+            cookies.insert(name, value);
+        }
+    }
+    cookies
+}
+
+// Build an axum response from PyResponse with headers and cookies
+fn build_response(py_response: PyResponse) -> axum::response::Response {
+    use axum::http::header::{HeaderMap, HeaderName, HeaderValue};
+    use axum::response::IntoResponse;
+
+    let status_code = StatusCode::from_u16(py_response.status).unwrap_or(StatusCode::OK);
+    let body = py_response.body;
+
+    // Build header map
+    let mut header_map = HeaderMap::new();
+    for (key, value) in py_response.headers.iter() {
+        if let Ok(header_name) = HeaderName::from_bytes(key.as_bytes()) {
+            if let Ok(header_value) = HeaderValue::from_str(value) {
+                header_map.insert(header_name, header_value);
+            }
+        }
+    }
+
+    // Add Set-Cookie headers
+    for cookie in py_response.cookies.iter() {
+        if let Ok(cookie_value) = HeaderValue::from_str(cookie) {
+            header_map.append("set-cookie", cookie_value);
+        }
+    }
+
+    (status_code, header_map, body).into_response()
+}
+
 async fn handler_request(
     method: Method,
     uri: Uri,
@@ -533,6 +699,13 @@ async fn handler_request(
         .get("user-agent")
         .cloned()
         .unwrap_or_else(|| "unknown".to_string());
+
+    // Parse cookies from Cookie header
+    let cookies = if let Some(cookie_header) = headers.get("cookie") {
+        parse_cookies(cookie_header)
+    } else {
+        HashMap::new()
+    };
 
     // Create a span for this request
     let span = span!(
@@ -571,12 +744,13 @@ async fn handler_request(
         drop(middlewares_lock);
 
         Python::attach(|py| {
-            // Create PyRequest with method, path, body, and headers
+            // Create PyRequest with method, path, body, headers, and cookies
             let mut py_request = PyRequest {
                 method: method_str.clone(),
                 path: path.clone(),
                 body: body.clone(),
                 headers: headers.clone(),
+                cookies: cookies.clone(),
             };
 
             // Execute each middleware in order
@@ -587,13 +761,8 @@ async fn handler_request(
                     Ok(response) => {
                         // Check if middleware returned a Response (early termination)
                         if let Ok(py_response) = response.extract::<PyResponse>(py) {
-                            let status_code =
-                                StatusCode::from_u16(py_response.status).unwrap_or(StatusCode::OK);
-                            let status_u16 = status_code.as_u16();
-                            return Some((
-                                (status_code, py_response.body).into_response(),
-                                status_u16,
-                            ));
+                            let status_u16 = py_response.status;
+                            return Some((build_response(py_response), status_u16));
                         }
                         // Otherwise, middleware might have modified the request
                         // Try to extract updated request
@@ -652,12 +821,13 @@ async fn handler_request(
         let _handler_enter = handler_span.enter();
 
         let resp = Python::attach(|py| {
-            // Create PyRequest with method, path, body, and headers
+            // Create PyRequest with method, path, body, headers, and cookies
             let py_request = PyRequest {
                 method: method_str.clone(),
                 path: path.clone(),
                 body,
                 headers: headers.clone(),
+                cookies: cookies.clone(),
             };
 
             // Call the handler with the request and path parameters
@@ -679,10 +849,8 @@ async fn handler_request(
                 Ok(response) => {
                     // Extract the response
                     if let Ok(py_response) = response.extract::<PyResponse>(py) {
-                        let status_code =
-                            StatusCode::from_u16(py_response.status).unwrap_or(StatusCode::OK);
-                        let status_u16 = status_code.as_u16();
-                        ((status_code, py_response.body).into_response(), status_u16)
+                        let status_u16 = py_response.status;
+                        (build_response(py_response), status_u16)
                     } else {
                         // Try to convert to string
                         if let Ok(response_str) = response.extract::<String>(py) {
