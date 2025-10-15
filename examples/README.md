@@ -136,6 +136,28 @@ curl http://127.0.0.1:8000/protected/data
 curl http://127.0.0.1:8000/protected/profile
 ```
 
+### 8. Headers Example (`headers_example.py`)
+Example demonstrating HTTP headers access in requests and responses.
+
+**Features:**
+- Access request headers like a dictionary
+- Set custom response headers
+- User-Agent automatic logging
+- Middleware with header access
+
+**Run:**
+```bash
+python examples/headers_example.py
+```
+
+**Test:**
+```bash
+curl http://127.0.0.1:8000/
+curl http://127.0.0.1:8000/headers
+curl http://127.0.0.1:8000/echo-agent
+curl -H 'User-Agent: MyBot/1.0' http://127.0.0.1:8000/
+```
+
 ## Notes
 
 - All examples run on `http://127.0.0.1:8000` by default
