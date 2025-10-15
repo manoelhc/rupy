@@ -8,9 +8,10 @@ use opentelemetry::{global, KeyValue};
 use opentelemetry_sdk::{metrics::SdkMeterProvider, trace::TracerProvider, Resource};
 use opentelemetry_semantic_conventions as semcov;
 use pyo3::prelude::*;
-use pyo3::types::PyTuple;
+use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
 use serde_json::json;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime};
@@ -28,25 +29,37 @@ pub struct PyRequest {
     path: String,
     #[pyo3(get)]
     body: String,
+    headers: HashMap<String, String>,
 }
 
 #[pymethods]
 impl PyRequest {
     #[new]
     fn new(method: String, path: String, body: String) -> Self {
-        PyRequest { method, path, body }
+        PyRequest { 
+            method, 
+            path, 
+            body,
+            headers: HashMap::new(),
+        }
     }
 
-    fn get_header(&self, _py: Python, _key: String) -> PyResult<Option<String>> {
-        // For now, headers are not extracted from the request
-        // This is a placeholder for future implementation
-        Ok(None)
+    fn get_header(&self, _py: Python, key: String) -> PyResult<Option<String>> {
+        Ok(self.headers.get(&key).cloned())
     }
 
-    fn set_header(&mut self, _py: Python, _key: String, _value: String) -> PyResult<()> {
-        // For now, this is a no-op
-        // This is a placeholder for future implementation
+    fn set_header(&mut self, _py: Python, key: String, value: String) -> PyResult<()> {
+        self.headers.insert(key, value);
         Ok(())
+    }
+
+    #[getter]
+    fn headers(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let dict = PyDict::new(py);
+        for (key, value) in &self.headers {
+            dict.set_item(key, value)?;
+        }
+        Ok(dict.into())
     }
 }
 
@@ -58,6 +71,7 @@ pub struct PyResponse {
     body: String,
     #[pyo3(get)]
     status: u16,
+    headers: HashMap<String, String>,
 }
 
 #[pymethods]
@@ -68,7 +82,26 @@ impl PyResponse {
         PyResponse {
             body,
             status: status.unwrap_or(200),
+            headers: HashMap::new(),
         }
+    }
+
+    fn get_header(&self, _py: Python, key: String) -> PyResult<Option<String>> {
+        Ok(self.headers.get(&key).cloned())
+    }
+
+    fn set_header(&mut self, _py: Python, key: String, value: String) -> PyResult<()> {
+        self.headers.insert(key, value);
+        Ok(())
+    }
+
+    #[getter]
+    fn headers(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let dict = PyDict::new(py);
+        for (key, value) in &self.headers {
+            dict.set_item(key, value)?;
+        }
+        Ok(dict.into())
     }
 }
 
@@ -486,6 +519,21 @@ async fn handler_request(
     let path = uri.path().to_string();
     let method_str = method.as_str().to_string();
 
+    // Extract headers from the request before consuming the body
+    let headers_map = request.headers().clone();
+    let mut headers = HashMap::new();
+    for (key, value) in headers_map.iter() {
+        if let Ok(value_str) = value.to_str() {
+            headers.insert(key.as_str().to_string(), value_str.to_string());
+        }
+    }
+
+    // Get User-Agent for logging
+    let user_agent = headers
+        .get("user-agent")
+        .cloned()
+        .unwrap_or_else(|| "unknown".to_string());
+
     // Create a span for this request
     let span = span!(
         Level::INFO,
@@ -493,10 +541,14 @@ async fn handler_request(
         http.method = %method_str,
         http.route = %path,
         http.scheme = "http",
+        http.user_agent = %user_agent,
     );
     let _enter = span.enter();
 
-    info!("Handling request: {} {}", method_str, path);
+    info!(
+        "Handling request: {} {} - User-Agent: {}",
+        method_str, path, user_agent
+    );
 
     // Extract body for methods that support it (POST, PUT, PATCH, DELETE)
     let body = if method == Method::POST
@@ -519,8 +571,13 @@ async fn handler_request(
         drop(middlewares_lock);
 
         Python::attach(|py| {
-            // Create PyRequest with method, path, and body
-            let mut py_request = PyRequest::new(method_str.clone(), path.clone(), body.clone());
+            // Create PyRequest with method, path, body, and headers
+            let mut py_request = PyRequest {
+                method: method_str.clone(),
+                path: path.clone(),
+                body: body.clone(),
+                headers: headers.clone(),
+            };
 
             // Execute each middleware in order
             for middleware_info in middlewares_list.iter() {
@@ -595,8 +652,13 @@ async fn handler_request(
         let _handler_enter = handler_span.enter();
 
         let resp = Python::attach(|py| {
-            // Create PyRequest with method, path, and body
-            let py_request = PyRequest::new(method_str.clone(), path.clone(), body);
+            // Create PyRequest with method, path, body, and headers
+            let py_request = PyRequest {
+                method: method_str.clone(),
+                path: path.clone(),
+                body,
+                headers: headers.clone(),
+            };
 
             // Call the handler with the request and path parameters
             let result = if param_values.is_empty() {
