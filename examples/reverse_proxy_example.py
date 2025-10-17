@@ -108,9 +108,12 @@ def status(request: Request) -> Response:
 
 # Proxy all /api/* requests to the backend service
 @app.proxy("/api", "http://127.0.0.1:8001")
-def api_proxy():
+def api_proxy(response: Response) -> Response:
     """Proxy /api/* to backend service"""
-    pass
+    # You can modify the proxied response here if needed
+    # For example, add custom headers
+    response.set_header("X-Proxied-By", "Rupy Proxy Handler")
+    return response
 
 
 if __name__ == "__main__":

@@ -76,14 +76,19 @@ def test(request: Request) -> Response:
 ## Static File Serving
 
 ```python
-from rupy import Rupy
+from rupy import Rupy, Response
 
 app = Rupy()
 
 # Serve files from ./public directory at /static path
+# The handler receives a Response object with the file content
+# and can modify it before returning
 @app.static("/static", "./public")
-def serve_static():
-    pass
+def serve_static(response: Response) -> Response:
+    # Optionally modify the response
+    response.set_header("Cache-Control", "max-age=3600")
+    response.set_header("X-Served-By", "My App")
+    return response
 
 # Now files are accessible:
 # ./public/style.css    -> http://localhost:8000/static/style.css
@@ -96,18 +101,24 @@ Features:
 - ✅ Directory traversal protection
 - ✅ 404 for non-existent files
 - ✅ 403 for security violations
+- ✅ Handler receives Response object for modification
 
 ## Reverse Proxy
 
 ```python
-from rupy import Rupy
+from rupy import Rupy, Response
 
 app = Rupy()
 
 # Proxy all /api/* requests to backend service
+# The handler receives a Response object with the proxied content
+# and can modify it before returning
 @app.proxy("/api", "http://backend-service:8080")
-def api_proxy():
-    pass
+def api_proxy(response: Response) -> Response:
+    # Optionally modify the proxied response
+    response.set_header("X-Proxied-By", "My App")
+    # Could also filter/transform content here
+    return response
 
 # Requests are forwarded:
 # /api/users        -> http://backend-service:8080/users
@@ -120,6 +131,7 @@ Features:
 - ✅ Headers preserved and forwarded
 - ✅ Request body preserved
 - ✅ Response headers returned
+- ✅ Handler receives Response object for modification
 
 ## OpenAPI/Swagger
 
@@ -158,15 +170,17 @@ app = Rupy()
 # Enable OpenAPI
 app.enable_openapi(title="My App", version="1.0.0")
 
-# Serve static files
+# Serve static files with custom caching headers
 @app.static("/static", "./public")
-def serve_static():
-    pass
+def serve_static(response: Response) -> Response:
+    response.set_header("Cache-Control", "max-age=3600")
+    return response
 
-# Proxy to backend
+# Proxy to backend with custom header
 @app.proxy("/api", "http://backend:8080")
-def api_proxy():
-    pass
+def api_proxy(response: Response) -> Response:
+    response.set_header("X-Proxied-By", "My App")
+    return response
 
 # Authentication middleware
 @app.middleware

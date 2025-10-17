@@ -64,9 +64,12 @@ with open(os.path.join(test_dir, "data.json"), "w") as f:
 
 # Serve static files from the /static path
 @app.static("/static", test_dir)
-def static_files():
+def static_files(response: Response) -> Response:
     """Serve static files from the test directory"""
-    pass
+    # You can modify the response here if needed
+    # For example, add custom headers
+    response.set_header("X-Served-By", "Rupy Static Handler")
+    return response
 
 
 @app.route("/", methods=["GET"])

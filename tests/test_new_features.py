@@ -65,13 +65,13 @@ class TestNewFeatures(unittest.TestCase):
         
         # Static file serving
         @cls.app.static("/static", cls.static_dir)
-        def serve_static():
-            pass
+        def serve_static(response: Response) -> Response:
+            return response
         
         # Reverse proxy
         @cls.app.proxy("/proxy", f"http://127.0.0.1:{cls.backend_port}")
-        def proxy_backend():
-            pass
+        def proxy_backend(response: Response) -> Response:
+            return response
         
         # Test routes
         @cls.app.route("/cookies", methods=["GET"])
