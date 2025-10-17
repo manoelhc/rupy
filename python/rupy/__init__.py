@@ -170,14 +170,19 @@ def _static_decorator(self, url_path: str, directory: str):
     """
     Decorator to serve static files from a directory.
     
+    The decorated function receives a Response object with the file content
+    and can modify it before returning.
+    
     Args:
         url_path: URL path prefix (e.g., "/static")
         directory: Local directory path to serve files from
     
     Example:
         @app.static("/static", "./public")
-        def static_files():
-            pass
+        def static_files(response: Response) -> Response:
+            # Optionally modify the response (add headers, etc.)
+            response.set_header("Cache-Control", "max-age=3600")
+            return response
     """
     import os
     
@@ -193,11 +198,13 @@ def _static_decorator(self, url_path: str, directory: str):
             real_path = os.path.realpath(full_path)
             
             if not real_path.startswith(real_directory):
-                return Response("Forbidden", status=403)
+                resp = Response("Forbidden", status=403)
+                return func(resp)
             
             # Check if file exists and is a file (not directory)
             if not os.path.exists(real_path) or not os.path.isfile(real_path):
-                return Response("Not Found", status=404)
+                resp = Response("Not Found", status=404)
+                return func(resp)
             
             # Read and return the file
             try:
@@ -209,9 +216,12 @@ def _static_decorator(self, url_path: str, directory: str):
                 
                 resp = Response(content.decode('utf-8', errors='replace'))
                 resp.set_header('Content-Type', content_type)
-                return resp
+                
+                # Call the user function with the response
+                return func(resp)
             except Exception as e:
-                return Response(f"Error reading file: {str(e)}", status=500)
+                resp = Response(f"Error reading file: {str(e)}", status=500)
+                return func(resp)
         
         # Register the route with a wildcard pattern
         route_pattern = f"{url_path}/<filepath:path>" if not url_path.endswith("/") else f"{url_path}<filepath:path>"
@@ -239,14 +249,19 @@ def _proxy_decorator(self, url_path: str, target_url: str):
     """
     Decorator to reverse proxy requests to another server.
     
+    The decorated function receives a Response object with the proxied content
+    and can modify it before returning.
+    
     Args:
         url_path: URL path prefix to proxy (e.g., "/api")
         target_url: Target server URL (e.g., "http://backend:8080")
     
     Example:
         @app.proxy("/api", "http://backend:8080")
-        def api_proxy():
-            pass
+        def api_proxy(response: Response) -> Response:
+            # Optionally modify the response (add headers, filter content, etc.)
+            response.set_header("X-Proxied-By", "Rupy")
+            return response
     """
     def decorator(func: Callable):
         import urllib.request
@@ -285,14 +300,18 @@ def _proxy_decorator(self, url_path: str, target_url: str):
                         if key.lower() not in ['connection', 'transfer-encoding']:
                             resp.set_header(key, value)
                     
-                    return resp
+                    # Call the user function with the response
+                    return func(resp)
                     
             except urllib.error.HTTPError as e:
-                return Response(e.read().decode('utf-8'), status=e.code)
+                resp = Response(e.read().decode('utf-8'), status=e.code)
+                return func(resp)
             except urllib.error.URLError as e:
-                return Response(f"Proxy error: {str(e)}", status=502)
+                resp = Response(f"Proxy error: {str(e)}", status=502)
+                return func(resp)
             except Exception as e:
-                return Response(f"Proxy error: {str(e)}", status=500)
+                resp = Response(f"Proxy error: {str(e)}", status=500)
+                return func(resp)
         
         # Register the route with a wildcard pattern
         route_pattern = f"{url_path}/<path>"
