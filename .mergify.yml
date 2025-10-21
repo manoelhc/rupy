@@ -1,0 +1,8 @@
+queue_rules:
+  - name: Dependabot
+    merge_method: squash
+    autoqueue: true
+    branch_protection_injection_mode: none
+    merge_conditions:
+      - and:
+          - author = dependabot
