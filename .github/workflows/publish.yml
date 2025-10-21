@@ -34,7 +34,11 @@ jobs:
       run: maturin build --release
     
     - name: Install built wheel
-      run: pip install target/wheels/rupy_api-*.whl
+      env:
+        PYTHON_VERSION: ${{ matrix.python-version }}
+      run: |
+        vpy="$(echo ${PYTHON_VERSION} | cut -d. -f1)$(echo ${PYTHON_VERSION} | cut -d. -f2)"
+        pip install target/wheels/rupy-api*cp${vpy}*.whl
     
     - name: Test Python import
       run: python -c "from rupy import Rupy; print('Successfully imported Rupy')"
