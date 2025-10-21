@@ -22,7 +22,24 @@ A high-performance web framework for Python, powered by Rust and Axum.
 
 ## Installation
 
-### Adding as a Dependency
+### Installing from PyPI
+
+Once released, you can install Rupy from PyPI:
+
+```bash
+pip install rupy-api
+```
+
+Or add it to your `pyproject.toml`:
+
+```toml
+[project]
+dependencies = [
+    "rupy-api>=0.1.0"
+]
+```
+
+### Adding as a Dependency from GitHub
 
 To add Rupy as a dependency to your project using the GitHub repository, add the following to your `pyproject.toml`:
 
