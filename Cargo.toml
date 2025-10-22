@@ -19,5 +19,5 @@ opentelemetry = "0.27"
 opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
 opentelemetry-otlp = { version = "0.27", features = ["metrics", "trace", "logs"] }
 opentelemetry-semantic-conventions = "0.27"
-tracing-opentelemetry = "0.27"
+tracing-opentelemetry = "0.32"
 tower-http = { version = "0.6", features = ["trace"] }
