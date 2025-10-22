@@ -5,7 +5,7 @@ use axum::{
     Router,
 };
 use opentelemetry::{global, KeyValue};
-use opentelemetry_sdk::{metrics::SdkMeterProvider, trace::TracerProvider, Resource};
+use opentelemetry_sdk::{metrics::SdkMeterProvider, trace::SdkTracerProvider, Resource};
 use opentelemetry_semantic_conventions as semcov;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
@@ -403,17 +403,19 @@ fn init_telemetry(config: &TelemetryConfig) -> TelemetryGuard {
     let service_name = config.service_name.clone();
 
     // Create resource with service name
-    let resource = Resource::new(vec![KeyValue::new(
-        semcov::resource::SERVICE_NAME,
-        service_name.clone(),
-    )]);
+    let resource = Resource::builder()
+        .with_attribute(KeyValue::new(
+            semcov::resource::SERVICE_NAME,
+            service_name.clone(),
+        ))
+        .build();
 
     // Create basic tracer provider
-    let tracer_provider = TracerProvider::builder()
+    let tracer_provider = SdkTracerProvider::builder()
         .with_resource(resource.clone())
         .build();
 
-    global::set_tracer_provider(tracer_provider);
+    global::set_tracer_provider(tracer_provider.clone());
 
     // Create basic meter provider
     let meter_provider = SdkMeterProvider::builder().with_resource(resource).build();
@@ -429,15 +431,22 @@ fn init_telemetry(config: &TelemetryConfig) -> TelemetryGuard {
 
     info!("OpenTelemetry initialized with service: {}", service_name);
 
-    TelemetryGuard
+    TelemetryGuard {
+        tracer_provider: Some(tracer_provider),
+    }
 }
 
 // Guard to ensure telemetry is properly shut down
-struct TelemetryGuard;
+struct TelemetryGuard {
+    tracer_provider: Option<SdkTracerProvider>,
+}
 
 impl Drop for TelemetryGuard {
     fn drop(&mut self) {
-        info!("Shutting down telemetry");
+        if let Some(provider) = self.tracer_provider.take() {
+            info!("Shutting down telemetry");
+            let _ = provider.shutdown();
+        }
     }
 }
 
@@ -487,10 +496,7 @@ async fn run_server(
     info!("Server shutdown complete");
     println!("Server shutdown complete");
 
-    // Shutdown telemetry
-    if config.enabled {
-        global::shutdown_tracer_provider();
-    }
+    // Telemetry shutdown is handled by the Drop implementation of TelemetryGuard
 }
 
 // Handle shutdown signals (Ctrl+C)
