@@ -4,6 +4,7 @@ use axum::{
     response::IntoResponse,
     Router,
 };
+use handlebars::Handlebars;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_sdk::{metrics::SdkMeterProvider, trace::SdkTracerProvider, Resource};
 use opentelemetry_semantic_conventions as semcov;
@@ -13,6 +14,7 @@ use pyo3::IntoPyObjectExt;
 use serde_json::json;
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime};
 use tower_http::trace::TraceLayer;
@@ -235,6 +237,9 @@ struct RouteInfo {
     handler: Py<PyAny>,
     path_params: Vec<String>, // e.g., ["username"] for "/user/<username>"
     methods: Vec<String>,     // e.g., ["GET", "POST"]
+    is_template: bool,        // Whether this route is a template route
+    template_name: Option<String>, // Template file name (e.g., "index.tpl")
+    content_type: String,     // Content type for the response
 }
 
 impl Clone for RouteInfo {
@@ -244,6 +249,9 @@ impl Clone for RouteInfo {
             handler: self.handler.clone_ref(py),
             path_params: self.path_params.clone(),
             methods: self.methods.clone(),
+            is_template: self.is_template,
+            template_name: self.template_name.clone(),
+            content_type: self.content_type.clone(),
         })
     }
 }
@@ -269,6 +277,12 @@ struct TelemetryConfig {
     service_name: String,
 }
 
+// Template configuration
+#[derive(Clone)]
+struct TemplateConfig {
+    template_dir: String,
+}
+
 #[pyclass]
 struct Rupy {
     host: String,
@@ -276,6 +290,7 @@ struct Rupy {
     routes: Arc<Mutex<Vec<RouteInfo>>>,
     middlewares: Arc<Mutex<Vec<MiddlewareInfo>>>,
     telemetry_config: Arc<Mutex<TelemetryConfig>>,
+    template_config: Arc<Mutex<TemplateConfig>>,
 }
 
 #[pymethods]
@@ -300,6 +315,9 @@ impl Rupy {
                 endpoint,
                 service_name,
             })),
+            template_config: Arc::new(Mutex::new(TemplateConfig {
+                template_dir: "./template".to_string(),
+            })),
         }
     }
 
@@ -313,6 +331,9 @@ impl Rupy {
             handler,
             path_params,
             methods,
+            is_template: false,
+            template_name: None,
+            content_type: "text/html".to_string(),
         };
 
         let mut routes = self.routes.lock().unwrap();
@@ -328,6 +349,46 @@ impl Rupy {
         middlewares.push(middleware_info);
 
         Ok(())
+    }
+
+    /// Register a template route
+    fn route_template(
+        &self,
+        path: String,
+        handler: Py<PyAny>,
+        methods: Vec<String>,
+        template_name: String,
+        content_type: String,
+    ) -> PyResult<()> {
+        let path_params = parse_path_params(&path);
+
+        let route_info = RouteInfo {
+            path,
+            handler,
+            path_params,
+            methods,
+            is_template: true,
+            template_name: Some(template_name),
+            content_type,
+        };
+
+        let mut routes = self.routes.lock().unwrap();
+        routes.push(route_info);
+
+        Ok(())
+    }
+
+    /// Set the template directory
+    fn set_template_dir(&self, dir: String) -> PyResult<()> {
+        let mut config = self.template_config.lock().unwrap();
+        config.template_dir = dir;
+        Ok(())
+    }
+
+    /// Get the template directory
+    fn get_template_dir(&self) -> PyResult<String> {
+        let config = self.template_config.lock().unwrap();
+        Ok(config.template_dir.clone())
     }
 
     /// Enable OpenTelemetry tracing, metrics, and logging
@@ -384,13 +445,14 @@ impl Rupy {
         let routes = self.routes.clone();
         let middlewares = self.middlewares.clone();
         let telemetry_config = self.telemetry_config.clone();
+        let template_config = self.template_config.clone();
 
         // Release the GIL before running the async server
         py.detach(|| {
             // Run the async server in a blocking context
             let runtime = tokio::runtime::Runtime::new().unwrap();
             runtime.block_on(async {
-                run_server(&host, port, routes, middlewares, telemetry_config).await
+                run_server(&host, port, routes, middlewares, telemetry_config, template_config).await
             });
         });
 
@@ -456,6 +518,7 @@ async fn run_server(
     routes: Arc<Mutex<Vec<RouteInfo>>>,
     middlewares: Arc<Mutex<Vec<MiddlewareInfo>>>,
     telemetry_config: Arc<Mutex<TelemetryConfig>>,
+    template_config: Arc<Mutex<TemplateConfig>>,
 ) {
     // Prepare Python for freethreaded access
     Python::initialize();
@@ -474,8 +537,9 @@ async fn run_server(
             let routes = routes.clone();
             let middlewares = middlewares.clone();
             let telemetry_config = telemetry_config.clone();
+            let template_config = template_config.clone();
             async move {
-                handler_request(method, uri, request, routes, middlewares, telemetry_config).await
+                handler_request(method, uri, request, routes, middlewares, telemetry_config, template_config).await
             }
         })
         .layer(TraceLayer::new_for_http());
@@ -679,6 +743,32 @@ fn build_response(py_response: PyResponse) -> axum::response::Response {
     (status_code, header_map, body).into_response()
 }
 
+// Render a template using Handlebars
+fn render_template(
+    template_dir: &str,
+    template_name: &str,
+    context: &serde_json::Value,
+) -> Result<String, String> {
+    let mut handlebars = Handlebars::new();
+    
+    // Build the full path to the template file
+    let template_path = PathBuf::from(template_dir).join(template_name);
+    
+    // Read the template file
+    let template_content = std::fs::read_to_string(&template_path)
+        .map_err(|e| format!("Failed to read template file '{}': {}", template_path.display(), e))?;
+    
+    // Register the template
+    handlebars
+        .register_template_string("template", template_content)
+        .map_err(|e| format!("Failed to parse template: {}", e))?;
+    
+    // Render the template
+    handlebars
+        .render("template", context)
+        .map_err(|e| format!("Failed to render template: {}", e))
+}
+
 async fn handler_request(
     method: Method,
     uri: Uri,
@@ -686,6 +776,7 @@ async fn handler_request(
     routes: Arc<Mutex<Vec<RouteInfo>>>,
     middlewares: Arc<Mutex<Vec<MiddlewareInfo>>>,
     telemetry_config: Arc<Mutex<TelemetryConfig>>,
+    template_config: Arc<Mutex<TemplateConfig>>,
 ) -> axum::response::Response {
     let start_time = Instant::now();
     let path = uri.path().to_string();
@@ -853,24 +944,93 @@ async fn handler_request(
 
             match result {
                 Ok(response) => {
-                    // Extract the response
-                    if let Ok(py_response) = response.extract::<PyResponse>(py) {
-                        let status_u16 = py_response.status;
-                        (build_response(py_response), status_u16)
-                    } else {
-                        // Try to convert to string
-                        if let Ok(response_str) = response.extract::<String>(py) {
-                            ((StatusCode::OK, response_str).into_response(), 200)
+                    // Check if this is a template route
+                    if route_info.is_template {
+                        // Handler should return a dict for template rendering
+                        if let Ok(py_dict) = response.cast_bound::<PyDict>(py) {
+                            // Convert PyDict to serde_json::Value
+                            let mut context = serde_json::Map::new();
+                            for (key, value) in py_dict.iter() {
+                                if let Ok(key_str) = key.extract::<String>() {
+                                    // Try to extract different types
+                                    let json_value = if let Ok(s) = value.extract::<String>() {
+                                        serde_json::Value::String(s)
+                                    } else if let Ok(i) = value.extract::<i64>() {
+                                        serde_json::Value::Number(i.into())
+                                    } else if let Ok(f) = value.extract::<f64>() {
+                                        if let Some(n) = serde_json::Number::from_f64(f) {
+                                            serde_json::Value::Number(n)
+                                        } else {
+                                            serde_json::Value::String(f.to_string())
+                                        }
+                                    } else if let Ok(b) = value.extract::<bool>() {
+                                        serde_json::Value::Bool(b)
+                                    } else if value.is_none() {
+                                        serde_json::Value::Null
+                                    } else {
+                                        // Fallback to string representation
+                                        serde_json::Value::String(value.to_string())
+                                    };
+                                    context.insert(key_str, json_value);
+                                }
+                            }
+
+                            // Render the template
+                            let template_dir = template_config.lock().unwrap().template_dir.clone();
+                            let template_name = route_info.template_name.as_ref().unwrap();
+                            
+                            match render_template(&template_dir, template_name, &serde_json::Value::Object(context)) {
+                                Ok(rendered) => {
+                                    let mut response = axum::response::Response::new(rendered.into());
+                                    response.headers_mut().insert(
+                                        axum::http::header::CONTENT_TYPE,
+                                        axum::http::HeaderValue::from_str(&route_info.content_type).unwrap(),
+                                    );
+                                    (response, 200)
+                                }
+                                Err(e) => {
+                                    error!("Template rendering error: {:?}", e);
+                                    (
+                                        (
+                                            StatusCode::INTERNAL_SERVER_ERROR,
+                                            format!("Template rendering error: {}", e),
+                                        )
+                                            .into_response(),
+                                        500,
+                                    )
+                                }
+                            }
                         } else {
-                            error!("Invalid response from handler");
+                            error!("Template handler must return a dict");
                             (
                                 (
                                     StatusCode::INTERNAL_SERVER_ERROR,
-                                    "Invalid response from handler",
+                                    "Template handler must return a dict",
                                 )
                                     .into_response(),
                                 500,
                             )
+                        }
+                    } else {
+                        // Extract the response for non-template routes
+                        if let Ok(py_response) = response.extract::<PyResponse>(py) {
+                            let status_u16 = py_response.status;
+                            (build_response(py_response), status_u16)
+                        } else {
+                            // Try to convert to string
+                            if let Ok(response_str) = response.extract::<String>(py) {
+                                ((StatusCode::OK, response_str).into_response(), 200)
+                            } else {
+                                error!("Invalid response from handler");
+                                (
+                                    (
+                                        StatusCode::INTERNAL_SERVER_ERROR,
+                                        "Invalid response from handler",
+                                    )
+                                        .into_response(),
+                                    500,
+                                )
+                            }
                         }
                     }
                 }
