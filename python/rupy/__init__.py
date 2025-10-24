@@ -394,6 +394,75 @@ _RupyBase.enable_openapi = _enable_openapi
 _RupyBase.disable_openapi = _disable_openapi
 
 
+# Add template decorator
+def _template_decorator(
+    self,
+    path: str,
+    template: str,
+    content_type: str = "text/html"
+):
+    """
+    Decorator to register a template route handler.
+    
+    The decorated function should return a dictionary that will be used
+    as the context for rendering the template using Handlebars.
+    
+    Args:
+        path: URL path pattern (e.g., "/", "/user/<username>")
+        template: Template filename (e.g., "index.tpl")
+        content_type: Response content type (default: "text/html")
+    
+    Example:
+        @app.template("/hello", template="hello.tpl")
+        def hello_page(request: Request) -> dict:
+            return {"name": "World", "greeting": "Hello"}
+    """
+    def decorator(func: Callable):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Call the handler function which should return a dict
+            result = func(*args, **kwargs)
+            # Ensure result is a dict
+            if not isinstance(result, dict):
+                raise TypeError(f"Template handler must return a dict, got {type(result)}")
+            return result
+        
+        # Register the template route with the Rust backend
+        # Use the internal route_template method
+        _RupyBase.route_template(
+            self,
+            path,
+            wrapper,
+            ["GET"],  # Default to GET for template routes
+            template,
+            content_type
+        )
+        
+        return func
+    
+    return decorator
+
+
+_RupyBase.template = _template_decorator
+
+
+# Add method to set template directory
+def _set_template_directory(self, directory: str):
+    """
+    Set the directory where template files are located.
+    
+    Args:
+        directory: Path to the template directory (default: "./template")
+    
+    Example:
+        app.set_template_directory("./templates")
+    """
+    _RupyBase.set_template_dir(self, directory)
+
+
+_RupyBase.set_template_directory = _set_template_directory
+
+
 # Export with the original name
 Rupy = _RupyBase
 
