@@ -29,7 +29,7 @@ class TestTemplateDecorator(unittest.TestCase):
             f.write("<html><body><h1>{{title}}</h1><p>{{message}}</p></body></html>")
         
         with open(os.path.join(cls.temp_dir, "user.tpl"), "w") as f:
-            f.write("<html><body><h1>User: {{username}}</h1><p>ID: {{id}}</p></body></html>")
+            f.write("<html><body><h1>User: {{username}}</h1><p>ID: {{user_id}}</p></body></html>")
         
         with open(os.path.join(cls.temp_dir, "json_test.tpl"), "w") as f:
             f.write('{"title": "{{title}}", "count": {{count}}}')
@@ -49,7 +49,7 @@ class TestTemplateDecorator(unittest.TestCase):
         def user_page(request: Request, username: str) -> dict:
             return {
                 "username": username,
-                "id": 123
+                "user_id": 123
             }
 
         @cls.app.template("/json", template="json_test.tpl", content_type="application/json")
@@ -113,7 +113,7 @@ class TestTemplateConfiguration(unittest.TestCase):
         """Test that default template directory is './template'."""
         app = Rupy()
         # Default should be "./template"
-        default_dir = app.get_template_dir()
+        default_dir = app.get_template_directory()
         self.assertEqual(default_dir, "./template")
 
 

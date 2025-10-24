@@ -463,6 +463,22 @@ def _set_template_directory(self, directory: str):
 _RupyBase.set_template_directory = _set_template_directory
 
 
+def _get_template_directory(self) -> str:
+    """
+    Get the directory where template files are located.
+    
+    Returns:
+        str: Path to the template directory
+    
+    Example:
+        template_dir = app.get_template_directory()
+    """
+    return _RupyBase.get_template_dir(self)
+
+
+_RupyBase.get_template_directory = _get_template_directory
+
+
 # Export with the original name
 Rupy = _RupyBase
 
