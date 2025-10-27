@@ -452,7 +452,15 @@ impl Rupy {
             // Run the async server in a blocking context
             let runtime = tokio::runtime::Runtime::new().unwrap();
             runtime.block_on(async {
-                run_server(&host, port, routes, middlewares, telemetry_config, template_config).await
+                run_server(
+                    &host,
+                    port,
+                    routes,
+                    middlewares,
+                    telemetry_config,
+                    template_config,
+                )
+                .await
             });
         });
 
@@ -539,7 +547,16 @@ async fn run_server(
             let telemetry_config = telemetry_config.clone();
             let template_config = template_config.clone();
             async move {
-                handler_request(method, uri, request, routes, middlewares, telemetry_config, template_config).await
+                handler_request(
+                    method,
+                    uri,
+                    request,
+                    routes,
+                    middlewares,
+                    telemetry_config,
+                    template_config,
+                )
+                .await
             }
         })
         .layer(TraceLayer::new_for_http());
@@ -750,19 +767,24 @@ fn render_template(
     context: &serde_json::Value,
 ) -> Result<String, String> {
     let mut handlebars = Handlebars::new();
-    
+
     // Build the full path to the template file
     let template_path = PathBuf::from(template_dir).join(template_name);
-    
+
     // Read the template file
-    let template_content = std::fs::read_to_string(&template_path)
-        .map_err(|e| format!("Failed to read template file '{}': {}", template_path.display(), e))?;
-    
+    let template_content = std::fs::read_to_string(&template_path).map_err(|e| {
+        format!(
+            "Failed to read template file '{}': {}",
+            template_path.display(),
+            e
+        )
+    })?;
+
     // Register the template
     handlebars
         .register_template_string("template", template_content)
         .map_err(|e| format!("Failed to parse template: {}", e))?;
-    
+
     // Render the template
     handlebars
         .render("template", context)
@@ -978,13 +1000,19 @@ async fn handler_request(
                             // Render the template
                             let template_dir = template_config.lock().unwrap().template_dir.clone();
                             let template_name = route_info.template_name.as_ref().unwrap();
-                            
-                            match render_template(&template_dir, template_name, &serde_json::Value::Object(context)) {
+
+                            match render_template(
+                                &template_dir,
+                                template_name,
+                                &serde_json::Value::Object(context),
+                            ) {
                                 Ok(rendered) => {
-                                    let mut response = axum::response::Response::new(rendered.into());
+                                    let mut response =
+                                        axum::response::Response::new(rendered.into());
                                     response.headers_mut().insert(
                                         axum::http::header::CONTENT_TYPE,
-                                        axum::http::HeaderValue::from_str(&route_info.content_type).unwrap(),
+                                        axum::http::HeaderValue::from_str(&route_info.content_type)
+                                            .unwrap(),
                                     );
                                     (response, 200)
                                 }
