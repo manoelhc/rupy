@@ -28,21 +28,33 @@ function print_info() {
 
 function show_help() {
     cat << EOF
-Rupy vs FastAPI Benchmark Helper Script
+Benchmark Helper Script for Python Web Frameworks
 
 Usage: $0 [COMMAND]
 
 Commands:
-    start           Start all services (PostgreSQL, Rupy, FastAPI)
-    stop            Stop all services
-    restart         Restart all services
-    logs            Show logs for all services
-    test            Run API compatibility tests
-    bench-rupy      Run load test against Rupy (requires locust)
-    bench-fastapi   Run load test against FastAPI (requires locust)
-    bench-both      Run load tests against both APIs sequentially
-    clean           Stop services and remove volumes
-    help            Show this help message
+    start              Start all services (PostgreSQL + all framework APIs)
+    stop               Stop all services
+    restart            Restart all services
+    logs               Show logs for all services
+    test               Run API compatibility tests for all frameworks
+    bench-rupy         Run load test against Rupy (requires locust)
+    bench-fastapi      Run load test against FastAPI (requires locust)
+    bench-django       Run load test against Django REST (requires locust)
+    bench-flask        Run load test against Flask-RESTful (requires locust)
+    bench-robyn        Run load test against Robyn (requires locust)
+    bench-mrhttp       Run load test against mrhttp (requires locust)
+    bench-all          Run load tests against all frameworks sequentially
+    clean              Stop services and remove volumes
+    help               Show this help message
+
+Frameworks included:
+    - Rupy (port 8001)
+    - FastAPI (port 8002)
+    - Django REST Framework (port 8003)
+    - Flask-RESTful (port 8004)
+    - Robyn (port 8005)
+    - mrhttp (port 8006)
 
 Examples:
     $0 start
@@ -65,6 +77,10 @@ function start_services() {
     echo "  - PostgreSQL: localhost:5432"
     echo "  - Rupy API: http://localhost:8001"
     echo "  - FastAPI: http://localhost:8002"
+    echo "  - Django REST: http://localhost:8003"
+    echo "  - Flask-RESTful: http://localhost:8004"
+    echo "  - Robyn: http://localhost:8005"
+    echo "  - mrhttp: http://localhost:8006"
     echo "  - Locust: http://localhost:8089"
 }
 
@@ -134,13 +150,21 @@ function bench_api() {
     echo "Open the report with: open ${output_file}.html"
 }
 
-function bench_both() {
+function bench_all() {
     bench_api "rupy" "localhost" "8001"
     echo ""
     bench_api "fastapi" "localhost" "8002"
+    echo ""
+    bench_api "django" "localhost" "8003"
+    echo ""
+    bench_api "flask" "localhost" "8004"
+    echo ""
+    bench_api "robyn" "localhost" "8005"
+    echo ""
+    bench_api "mrhttp" "localhost" "8006"
     
     print_header "Benchmark Comparison Complete"
-    echo "Compare the HTML reports to see performance differences."
+    echo "Compare the HTML reports to see performance differences across all frameworks."
 }
 
 function clean_all() {
@@ -172,8 +196,20 @@ case "${1:-help}" in
     bench-fastapi)
         bench_api "fastapi" "localhost" "8002"
         ;;
-    bench-both)
-        bench_both
+    bench-django)
+        bench_api "django" "localhost" "8003"
+        ;;
+    bench-flask)
+        bench_api "flask" "localhost" "8004"
+        ;;
+    bench-robyn)
+        bench_api "robyn" "localhost" "8005"
+        ;;
+    bench-mrhttp)
+        bench_api "mrhttp" "localhost" "8006"
+        ;;
+    bench-all)
+        bench_all
         ;;
     clean)
         clean_all

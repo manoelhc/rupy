@@ -138,24 +138,27 @@ def main():
     print("="*60)
     
     # Check if services are available
-    rupy_url = "http://localhost:8001"
-    fastapi_url = "http://localhost:8002"
-    
-    rupy_ready = wait_for_service(rupy_url)
-    fastapi_ready = wait_for_service(fastapi_url)
-    
-    if not rupy_ready and not fastapi_ready:
-        print("\nError: Neither API is available.")
-        print("Please start the services with: docker-compose up")
-        sys.exit(1)
+    apis = [
+        ("Rupy", "http://localhost:8001"),
+        ("FastAPI", "http://localhost:8002"),
+        ("Django", "http://localhost:8003"),
+        ("Flask", "http://localhost:8004"),
+        ("Robyn", "http://localhost:8005"),
+        ("mrhttp", "http://localhost:8006"),
+    ]
     
     results = []
+    any_ready = False
     
-    if rupy_ready:
-        results.append(("Rupy", test_api(rupy_url, "Rupy API")))
+    for api_name, api_url in apis:
+        if wait_for_service(api_url):
+            any_ready = True
+            results.append((api_name, test_api(api_url, f"{api_name} API")))
     
-    if fastapi_ready:
-        results.append(("FastAPI", test_api(fastapi_url, "FastAPI")))
+    if not any_ready:
+        print("\nError: No APIs are available.")
+        print("Please start the services with: docker-compose up")
+        sys.exit(1)
     
     # Final summary
     print(f"\n{'='*60}")

@@ -1,16 +1,25 @@
-# Benchmark Load Tests: Rupy vs FastAPI
+# Benchmark Load Tests: Python Web Frameworks Comparison
 
-This directory contains load testing benchmarks comparing Rupy and FastAPI performance with PostgreSQL operations.
+This directory contains load testing benchmarks comparing multiple Python web frameworks with PostgreSQL operations.
 
 ## Overview
 
-Both implementations provide identical REST APIs with the following endpoints:
+All implementations provide identical REST APIs with the following endpoints:
 - `GET /` - Health check
 - `GET /items` - List all items (with pagination)
 - `GET /items/{id}` - Get a specific item
 - `POST /items` - Create a new item
 - `PUT /items/{id}` - Update an existing item
 - `POST /upsert` - Insert or update based on item name
+
+## Frameworks Tested
+
+- **Rupy** - High-performance framework powered by Rust (port 8001)
+- **FastAPI** - Modern async Python framework (port 8002)
+- **Django REST Framework** - Full-featured framework (port 8003)
+- **Flask-RESTful** - Lightweight RESTful extension for Flask (port 8004)
+- **Robyn** - Fast async framework built with Rust (port 8005)
+- **mrhttp** - High-performance C extension framework (port 8006)
 
 ## Directory Structure
 
@@ -23,6 +32,22 @@ benchmark/load-test/
 ├── fastapi-pg-upsert-select/
 │   ├── app.py              # FastAPI implementation
 │   ├── Dockerfile          # Docker image for FastAPI
+│   └── requirements.txt    # Python dependencies
+├── django-pg-upsert-select/
+│   ├── app.py              # Django REST implementation
+│   ├── Dockerfile          # Docker image for Django
+│   └── requirements.txt    # Python dependencies
+├── flask-pg-upsert-select/
+│   ├── app.py              # Flask-RESTful implementation
+│   ├── Dockerfile          # Docker image for Flask
+│   └── requirements.txt    # Python dependencies
+├── robyn-pg-upsert-select/
+│   ├── app.py              # Robyn implementation
+│   ├── Dockerfile          # Docker image for Robyn
+│   └── requirements.txt    # Python dependencies
+├── mrhttp-pg-upsert-select/
+│   ├── app.py              # mrhttp implementation
+│   ├── Dockerfile          # Docker image for mrhttp
 │   └── requirements.txt    # Python dependencies
 ├── docker-compose.yml      # Orchestrates all services
 ├── locustfile.py          # Locust load testing script
@@ -49,11 +74,19 @@ cd benchmark/load-test
 # Start all services
 ./benchmark.sh start
 
-# Test both APIs
+# Test all APIs
 ./benchmark.sh test
 
-# Run load tests
-./benchmark.sh bench-both
+# Run load tests on all frameworks
+./benchmark.sh bench-all
+
+# Run load test on specific framework
+./benchmark.sh bench-rupy
+./benchmark.sh bench-fastapi
+./benchmark.sh bench-django
+./benchmark.sh bench-flask
+./benchmark.sh bench-robyn
+./benchmark.sh bench-mrhttp
 
 # View logs
 ./benchmark.sh logs
@@ -78,20 +111,22 @@ This will start:
 - PostgreSQL database (port 5432)
 - Rupy API (port 8001)
 - FastAPI (port 8002)
+- Django REST Framework (port 8003)
+- Flask-RESTful (port 8004)
+- Robyn (port 8005)
+- mrhttp (port 8006)
 - Locust master (port 8089)
 
 ### 2. Verify APIs are Running
 
-Test Rupy:
+Test any framework:
 ```bash
-curl http://localhost:8001/
-# Expected: {"status": "ok", "service": "rupy-benchmark"}
-```
-
-Test FastAPI:
-```bash
-curl http://localhost:8002/
-# Expected: {"status": "ok", "service": "fastapi-benchmark"}
+curl http://localhost:8001/  # Rupy
+curl http://localhost:8002/  # FastAPI
+curl http://localhost:8003/  # Django
+curl http://localhost:8004/  # Flask
+curl http://localhost:8005/  # Robyn
+curl http://localhost:8006/  # mrhttp
 ```
 
 ### 3. Run Load Tests with Locust
@@ -204,19 +239,23 @@ You can modify these distributions in `locustfile.py` by adjusting the `@task` w
 ### Running Performance Comparison
 
 ```bash
-# Test Rupy
+# Test all frameworks with 500 users for 5 minutes
+./benchmark.sh bench-all
+
+# Or test individually
 locust -f locustfile.py --headless \
   --users 500 --spawn-rate 50 --run-time 300s \
   --host http://localhost:8001 \
   --html rupy-500users.html \
   --csv rupy-500users
 
-# Test FastAPI
 locust -f locustfile.py --headless \
   --users 500 --spawn-rate 50 --run-time 300s \
   --host http://localhost:8002 \
   --html fastapi-500users.html \
   --csv fastapi-500users
+
+# Repeat for other frameworks on ports 8003-8006
 ```
 
 ## Monitoring
@@ -230,13 +269,16 @@ docker stats
 ### View Logs
 
 ```bash
-# Rupy logs
+# All services
+docker-compose logs -f
+
+# Specific services
 docker-compose logs -f rupy-api
-
-# FastAPI logs
 docker-compose logs -f fastapi-api
-
-# PostgreSQL logs
+docker-compose logs -f django-api
+docker-compose logs -f flask-api
+docker-compose logs -f robyn-api
+docker-compose logs -f mrhttp-api
 docker-compose logs -f postgres
 ```
 
