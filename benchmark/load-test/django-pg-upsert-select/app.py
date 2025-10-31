@@ -9,6 +9,10 @@ import os
 import django
 from django.conf import settings
 
+import logging
+
+logger = logging.getLogger("django-pg-upsert-select.app")
+logging.basicConfig(level=logging.INFO)
 # Configure Django settings
 if not settings.configured:
     settings.configure(
@@ -137,7 +141,8 @@ def create_item(request):
         
         return Response(item, status=status.HTTP_201_CREATED)
     except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.exception("Exception in create_item")
+        return Response({"error": "An internal error has occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['PUT'])
@@ -168,7 +173,8 @@ def update_item(request, item_id):
             else:
                 return Response({"error": "Item not found"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.exception("Exception in update_item")
+        return Response({"error": "An internal error has occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
@@ -212,7 +218,8 @@ def upsert_item(request):
         
         return Response(item)
     except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.exception("Exception in upsert_item")
+        return Response({"error": "An internal error has occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # URL patterns
