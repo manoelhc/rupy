@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: benchmark
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rupy-api:
+    build:
+      context: .
+      dockerfile: rupy-pg-upsert-select/Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: benchmark
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  fastapi-api:
+    build:
+      context: .
+      dockerfile: fastapi-pg-upsert-select/Dockerfile
+    ports:
+      - "8002:8000"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: benchmark
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  locust-master:
+    image: locustio/locust:latest
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./locustfile.py:/mnt/locust/locustfile.py
+    command: -f /mnt/locust/locustfile.py --master --host=http://rupy-api:8000
+    depends_on:
+      - rupy-api
+      - fastapi-api
+
+volumes:
+  postgres_data:
