@@ -459,9 +459,15 @@ impl Rupy {
         let path_params = parse_path_params(&path);
 
         let upload_config = UploadConfig {
-            accepted_mime_types: accepted_mime_types.unwrap_or_else(Vec::new),
+            accepted_mime_types: accepted_mime_types.unwrap_or_default(),
             max_size,
-            upload_dir: upload_dir.unwrap_or_else(|| "/tmp".to_string()),
+            upload_dir: upload_dir.unwrap_or_else(|| {
+                // Use a more secure default than /tmp
+                std::env::temp_dir()
+                    .join("rupy-uploads")
+                    .to_string_lossy()
+                    .to_string()
+            }),
         };
 
         let route_info = RouteInfo {
@@ -1079,8 +1085,24 @@ async fn handler_request(
                 .unwrap_or_default();
 
             // Extract boundary from content-type header
+            // Parse boundary more robustly, handling quotes and spaces
             let boundary = if let Some(boundary_start) = content_type.find("boundary=") {
-                content_type[boundary_start + 9..].trim().to_string()
+                let boundary_str = &content_type[boundary_start + 9..];
+                // Remove quotes if present and trim whitespace
+                let boundary_str = boundary_str.trim();
+                if boundary_str.starts_with('"') && boundary_str.contains('"') {
+                    // Remove surrounding quotes
+                    let end_quote = boundary_str[1..].find('"').unwrap_or(boundary_str.len() - 1);
+                    boundary_str[1..=end_quote].to_string()
+                } else {
+                    // Take until semicolon or end of string
+                    boundary_str
+                        .split(';')
+                        .next()
+                        .unwrap_or(boundary_str)
+                        .trim()
+                        .to_string()
+                }
             } else {
                 error!("Missing boundary in multipart/form-data request");
                 let duration = start_time.elapsed();
