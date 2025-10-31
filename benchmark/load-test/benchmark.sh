@@ -91,8 +91,14 @@ function run_tests() {
         exit 1
     fi
     
-    # Install requests if needed
-    pip install requests 2>/dev/null || true
+    # Check if requests is installed, install if needed
+    if ! python3 -c "import requests" 2>/dev/null; then
+        print_info "Installing requests package..."
+        pip install --quiet requests || {
+            print_error "Failed to install requests package"
+            exit 1
+        }
+    fi
     
     python3 test_apis.py
 }

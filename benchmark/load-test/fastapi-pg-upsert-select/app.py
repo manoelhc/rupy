@@ -151,12 +151,17 @@ def update_item(item_id: int, item: Item):
 
 @app.post("/upsert")
 def upsert_item(item: Item):
-    """Insert or update an item based on name."""
+    """Insert or update an item based on name.
+    
+    Note: This implementation uses a SELECT-then-INSERT/UPDATE pattern.
+    For production use, consider adding a unique constraint on name and
+    using ON CONFLICT for atomic upserts to avoid race conditions.
+    """
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         
-        # Check if item exists
+        # Check if item exists and update or insert accordingly
         cursor.execute("SELECT * FROM items WHERE name = %s", (item.name,))
         existing = cursor.fetchone()
         

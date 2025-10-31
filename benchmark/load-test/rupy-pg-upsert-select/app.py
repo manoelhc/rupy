@@ -186,7 +186,12 @@ def update_item(request: Request, item_id: str) -> Response:
 
 @app.post("/upsert")
 def upsert_item(request: Request) -> Response:
-    """Insert or update an item based on name."""
+    """Insert or update an item based on name.
+    
+    Note: This implementation uses a SELECT-then-INSERT/UPDATE pattern.
+    For production use, consider adding a unique constraint on name and
+    using ON CONFLICT for atomic upserts to avoid race conditions.
+    """
     try:
         data = json.loads(request.body) if request.body else {}
         name = data.get("name", "")
@@ -202,18 +207,7 @@ def upsert_item(request: Request) -> Response:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         
-        # PostgreSQL UPSERT using ON CONFLICT
-        cursor.execute("""
-            INSERT INTO items (name, value)
-            VALUES (%s, %s)
-            ON CONFLICT (name) DO UPDATE SET
-                value = EXCLUDED.value,
-                updated_at = CURRENT_TIMESTAMP
-            RETURNING *
-        """, (name, value))
-        
-        # Note: The above query needs a unique constraint on name
-        # For this benchmark, we'll use a simpler approach
+        # Check if item exists and update or insert accordingly
         cursor.execute("SELECT * FROM items WHERE name = %s", (name,))
         existing = cursor.fetchone()
         
