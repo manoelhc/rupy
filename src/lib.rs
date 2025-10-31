@@ -1,10 +1,12 @@
 use axum::{
+    body::Body,
     extract::Request,
     http::{Method, StatusCode, Uri},
     response::IntoResponse,
     Router,
 };
 use handlebars::Handlebars;
+use multer::Multipart;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_sdk::{metrics::SdkMeterProvider, trace::SdkTracerProvider, Resource};
 use opentelemetry_semantic_conventions as semcov;
@@ -13,10 +15,13 @@ use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
 use serde_json::json;
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::Write;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime};
+use tempfile::NamedTempFile;
 use tower_http::trace::TraceLayer;
 use tracing::{error, info, span, warn, Level};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -231,6 +236,61 @@ impl PyResponse {
     }
 }
 
+// Python UploadFile wrapper
+#[pyclass]
+#[derive(Clone)]
+pub struct PyUploadFile {
+    #[pyo3(get)]
+    filename: String,
+    #[pyo3(get)]
+    content_type: String,
+    #[pyo3(get)]
+    size: u64,
+    #[pyo3(get)]
+    path: String,
+}
+
+#[pymethods]
+impl PyUploadFile {
+    #[new]
+    fn new(filename: String, content_type: String, size: u64, path: String) -> Self {
+        PyUploadFile {
+            filename,
+            content_type,
+            size,
+            path,
+        }
+    }
+
+    /// Get the file name
+    fn get_filename(&self) -> PyResult<String> {
+        Ok(self.filename.clone())
+    }
+
+    /// Get the content type (MIME type)
+    fn get_content_type(&self) -> PyResult<String> {
+        Ok(self.content_type.clone())
+    }
+
+    /// Get the file size in bytes
+    fn get_size(&self) -> PyResult<u64> {
+        Ok(self.size)
+    }
+
+    /// Get the temporary file path where the file is stored
+    fn get_path(&self) -> PyResult<String> {
+        Ok(self.path.clone())
+    }
+}
+
+// Upload configuration
+#[derive(Clone)]
+struct UploadConfig {
+    accepted_mime_types: Vec<String>,
+    max_size: Option<u64>,
+    upload_dir: String,
+}
+
 // Route information
 struct RouteInfo {
     path: String,
@@ -240,6 +300,8 @@ struct RouteInfo {
     is_template: bool,        // Whether this route is a template route
     template_name: Option<String>, // Template file name (e.g., "index.tpl")
     content_type: String,     // Content type for the response
+    is_upload: bool,          // Whether this route handles file uploads
+    upload_config: Option<UploadConfig>, // Upload configuration
 }
 
 impl Clone for RouteInfo {
@@ -252,6 +314,8 @@ impl Clone for RouteInfo {
             is_template: self.is_template,
             template_name: self.template_name.clone(),
             content_type: self.content_type.clone(),
+            is_upload: self.is_upload,
+            upload_config: self.upload_config.clone(),
         })
     }
 }
@@ -334,6 +398,8 @@ impl Rupy {
             is_template: false,
             template_name: None,
             content_type: "text/html".to_string(),
+            is_upload: false,
+            upload_config: None,
         };
 
         let mut routes = self.routes.lock().unwrap();
@@ -370,6 +436,45 @@ impl Rupy {
             is_template: true,
             template_name: Some(template_name),
             content_type,
+            is_upload: false,
+            upload_config: None,
+        };
+
+        let mut routes = self.routes.lock().unwrap();
+        routes.push(route_info);
+
+        Ok(())
+    }
+
+    /// Register an upload route
+    #[pyo3(signature = (path, handler, methods, accepted_mime_types=None, max_size=None, upload_dir=None))]
+    fn route_upload(
+        &self,
+        path: String,
+        handler: Py<PyAny>,
+        methods: Vec<String>,
+        accepted_mime_types: Option<Vec<String>>,
+        max_size: Option<u64>,
+        upload_dir: Option<String>,
+    ) -> PyResult<()> {
+        let path_params = parse_path_params(&path);
+
+        let upload_config = UploadConfig {
+            accepted_mime_types: accepted_mime_types.unwrap_or_else(Vec::new),
+            max_size,
+            upload_dir: upload_dir.unwrap_or_else(|| "/tmp".to_string()),
+        };
+
+        let route_info = RouteInfo {
+            path,
+            handler,
+            path_params,
+            methods,
+            is_template: false,
+            template_name: None,
+            content_type: "application/json".to_string(),
+            is_upload: true,
+            upload_config: Some(upload_config),
         };
 
         let mut routes = self.routes.lock().unwrap();
@@ -791,6 +896,118 @@ fn render_template(
         .map_err(|e| format!("Failed to render template: {}", e))
 }
 
+// Process multipart file upload
+async fn process_multipart_upload(
+    body: Body,
+    boundary: String,
+    upload_config: &UploadConfig,
+) -> Result<Vec<PyUploadFile>, String> {
+    use futures_util::stream::StreamExt;
+    
+    // Convert Body to Stream for multer
+    let stream = body.into_data_stream();
+    let mut multipart = Multipart::new(stream, boundary);
+    let mut uploaded_files = Vec::new();
+
+    while let Some(mut field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| format!("Error reading multipart field: {}", e))?
+    {
+        let filename = field
+            .file_name()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let content_type = field
+            .content_type()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "application/octet-stream".to_string());
+
+        // Check if MIME type is accepted
+        if !upload_config.accepted_mime_types.is_empty() {
+            let mime_accepted = upload_config
+                .accepted_mime_types
+                .iter()
+                .any(|accepted| {
+                    // Support wildcard matching (e.g., "image/*")
+                    if accepted.ends_with("/*") {
+                        let prefix = &accepted[..accepted.len() - 2];
+                        content_type.starts_with(prefix)
+                    } else {
+                        &content_type == accepted
+                    }
+                });
+
+            if !mime_accepted {
+                return Err(format!(
+                    "File type '{}' not accepted. Accepted types: {:?}",
+                    content_type, upload_config.accepted_mime_types
+                ));
+            }
+        }
+
+        // Create a temporary file in the upload directory
+        let upload_dir = PathBuf::from(&upload_config.upload_dir);
+        std::fs::create_dir_all(&upload_dir)
+            .map_err(|e| format!("Failed to create upload directory: {}", e))?;
+
+        let temp_file = NamedTempFile::new_in(&upload_dir)
+            .map_err(|e| format!("Failed to create temp file: {}", e))?;
+
+        let temp_path = temp_file.path().to_string_lossy().to_string();
+        let mut file = File::create(&temp_path)
+            .map_err(|e| format!("Failed to open temp file for writing: {}", e))?;
+
+        let mut total_size: u64 = 0;
+
+        // Stream the file data to disk without loading it all into memory
+        while let Some(chunk) = field
+            .chunk()
+            .await
+            .map_err(|e| format!("Error reading file chunk: {}", e))?
+        {
+            let chunk_size = chunk.len() as u64;
+            total_size += chunk_size;
+
+            // Check size limit
+            if let Some(max_size) = upload_config.max_size {
+                if total_size > max_size {
+                    // Clean up the temp file
+                    let _ = std::fs::remove_file(&temp_path);
+                    return Err(format!(
+                        "File size ({} bytes) exceeds maximum allowed size ({} bytes)",
+                        total_size, max_size
+                    ));
+                }
+            }
+
+            file.write_all(&chunk)
+                .map_err(|e| format!("Failed to write to temp file: {}", e))?;
+        }
+
+        file.flush()
+            .map_err(|e| format!("Failed to flush temp file: {}", e))?;
+
+        // Persist the temp file (prevent it from being deleted)
+        let persisted_path = temp_file
+            .into_temp_path()
+            .keep()
+            .map_err(|e| format!("Failed to persist temp file: {}", e))?;
+
+        let upload_file = PyUploadFile {
+            filename,
+            content_type,
+            size: total_size,
+            path: persisted_path.to_string_lossy().to_string(),
+        };
+
+        uploaded_files.push(upload_file);
+    }
+
+    Ok(uploaded_files)
+}
+
 async fn handler_request(
     method: Method,
     uri: Uri,
@@ -842,7 +1059,118 @@ async fn handler_request(
         method_str, path, user_agent
     );
 
-    // Extract body for methods that support it (POST, PUT, PATCH, DELETE)
+    // Try to find a matching route early to check if it's an upload route
+    let matched_route = {
+        let routes_lock = routes.lock().unwrap();
+        let mut matched: Option<(RouteInfo, Vec<String>)> = None;
+
+        for route_info in routes_lock.iter() {
+            // Check if path matches
+            if let Some(param_values) = match_route(&path, &route_info.path) {
+                // Check if method is supported by this route
+                if route_info.methods.iter().any(|m| m == &method_str) {
+                    matched = Some((route_info.clone(), param_values));
+                    break;
+                }
+            }
+        }
+        matched
+    }; // routes_lock is dropped here
+
+    // Handle upload routes specially to avoid loading entire body into memory
+    if let Some((ref route_info, _)) = matched_route {
+        if route_info.is_upload {
+            // This is an upload route, handle multipart data
+            let content_type = headers
+                .get("content-type")
+                .cloned()
+                .unwrap_or_default();
+
+            // Extract boundary from content-type header
+            let boundary = if let Some(boundary_start) = content_type.find("boundary=") {
+                content_type[boundary_start + 9..].trim().to_string()
+            } else {
+                error!("Missing boundary in multipart/form-data request");
+                let duration = start_time.elapsed();
+                record_metrics(&telemetry_config, &method_str, &path, 400, duration);
+                return (StatusCode::BAD_REQUEST, "Missing boundary in Content-Type")
+                    .into_response();
+            };
+
+            let upload_config = route_info.upload_config.as_ref().unwrap();
+            
+            // Process the multipart upload
+            match process_multipart_upload(request.into_body(), boundary, upload_config).await {
+                Ok(uploaded_files) => {
+                    let resp = Python::attach(|py| {
+                        // Create PyRequest with method, path, and headers
+                        let py_request = PyRequest {
+                            method: method_str.clone(),
+                            path: path.clone(),
+                            body: String::new(),
+                            headers: headers.clone(),
+                            cookies: cookies.clone(),
+                        };
+
+                        // Convert uploaded files to Python objects
+                        let py_files = pyo3::types::PyList::empty(py);
+                        for file in uploaded_files {
+                            let py_file = Bound::new(py, file).unwrap();
+                            let _ = py_files.append(py_file);
+                        }
+
+                        // Call the handler with request and files
+                        let result = route_info
+                            .handler
+                            .call1(py, (py_request, py_files.clone()));
+
+                        match result {
+                            Ok(response) => {
+                                if let Ok(py_response) = response.extract::<PyResponse>(py) {
+                                    let status_u16 = py_response.status;
+                                    (build_response(py_response), status_u16)
+                                } else if let Ok(response_str) = response.extract::<String>(py) {
+                                    ((StatusCode::OK, response_str).into_response(), 200)
+                                } else {
+                                    error!("Invalid response from upload handler");
+                                    (
+                                        (
+                                            StatusCode::INTERNAL_SERVER_ERROR,
+                                            "Invalid response from handler",
+                                        )
+                                            .into_response(),
+                                        500,
+                                    )
+                                }
+                            }
+                            Err(e) => {
+                                error!("Error calling Python upload handler: {:?}", e);
+                                (
+                                    (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
+                                        .into_response(),
+                                    500,
+                                )
+                            }
+                        }
+                    });
+
+                    let duration = start_time.elapsed();
+                    record_metrics(&telemetry_config, &method_str, &path, resp.1, duration);
+                    info!("Request completed: {} - Duration: {:?}", resp.1, duration);
+                    return resp.0;
+                }
+                Err(e) => {
+                    error!("Upload error: {}", e);
+                    let duration = start_time.elapsed();
+                    record_metrics(&telemetry_config, &method_str, &path, 400, duration);
+                    return (StatusCode::BAD_REQUEST, format!("Upload error: {}", e))
+                        .into_response();
+                }
+            }
+        }
+    }
+
+    // Extract body for non-upload methods that support it (POST, PUT, PATCH, DELETE)
     let body = if method == Method::POST
         || method == Method::PUT
         || method == Method::PATCH
@@ -914,24 +1242,6 @@ async fn handler_request(
         );
         return response;
     }
-
-    // Try to find a matching route
-    let matched_route = {
-        let routes_lock = routes.lock().unwrap();
-        let mut matched: Option<(RouteInfo, Vec<String>)> = None;
-
-        for route_info in routes_lock.iter() {
-            // Check if path matches
-            if let Some(param_values) = match_route(&path, &route_info.path) {
-                // Check if method is supported by this route
-                if route_info.methods.iter().any(|m| m == &method_str) {
-                    matched = Some((route_info.clone(), param_values));
-                    break;
-                }
-            }
-        }
-        matched
-    }; // routes_lock is dropped here
 
     // Now handle the matched route outside the lock
     let (response, status_code) = if let Some((route_info, param_values)) = matched_route {
@@ -1122,5 +1432,6 @@ fn rupy(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Rupy>()?;
     m.add_class::<PyRequest>()?;
     m.add_class::<PyResponse>()?;
+    m.add_class::<PyUploadFile>()?;
     Ok(())
 }

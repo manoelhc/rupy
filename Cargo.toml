@@ -22,3 +22,6 @@ opentelemetry-semantic-conventions = "0.31"
 tracing-opentelemetry = "0.32"
 tower-http = { version = "0.6", features = ["trace"] }
 handlebars = "6.2"
+multer = "3.1"
+tempfile = "3.17"
+futures-util = "0.3"

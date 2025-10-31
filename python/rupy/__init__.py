@@ -2,7 +2,7 @@
 Rupy - A high-performance web framework for Python, powered by Rust and Axum
 """
 
-from .rupy import Rupy as _RupyBase, PyRequest as Request, PyResponse as Response
+from .rupy import Rupy as _RupyBase, PyRequest as Request, PyResponse as Response, PyUploadFile as UploadFile
 from functools import wraps
 from typing import Callable, List, Optional
 
@@ -479,8 +479,66 @@ def _get_template_directory(self) -> str:
 _RupyBase.get_template_directory = _get_template_directory
 
 
+# Add upload decorator
+def _upload_decorator(
+    self,
+    path: str,
+    accepted_mime_types: Optional[List[str]] = None,
+    max_size: Optional[int] = None,
+    upload_dir: Optional[str] = None,
+):
+    """
+    Decorator to register a file upload handler.
+    
+    The decorated function receives a Request object and a list of UploadFile objects.
+    Files are streamed to disk to avoid memory overflow.
+    
+    Args:
+        path: URL path pattern (e.g., "/upload")
+        accepted_mime_types: List of accepted MIME types (e.g., ["image/*", "application/pdf"])
+                           Empty list or None means all types accepted
+        max_size: Maximum file size in bytes (None means no limit)
+        upload_dir: Directory to store uploaded files (default: "/tmp")
+    
+    Example:
+        @app.upload("/upload", accepted_mime_types=["image/*"], max_size=10*1024*1024)
+        def handle_upload(request: Request, files: List[UploadFile]) -> Response:
+            for file in files:
+                print(f"Uploaded: {file.filename} ({file.size} bytes)")
+                print(f"Stored at: {file.path}")
+                print(f"MIME type: {file.content_type}")
+            return Response("Files uploaded successfully")
+    """
+    def decorator(func: Callable):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            result = func(*args, **kwargs)
+            # If the result is a string, wrap it in a Response
+            if isinstance(result, str):
+                return Response(result)
+            return result
+        
+        # Register the upload route with the Rust backend
+        _RupyBase.route_upload(
+            self,
+            path,
+            wrapper,
+            ["POST"],  # Upload routes typically use POST
+            accepted_mime_types,
+            max_size,
+            upload_dir,
+        )
+        
+        return func
+    
+    return decorator
+
+
+_RupyBase.upload = _upload_decorator
+
+
 # Export with the original name
 Rupy = _RupyBase
 
-__all__ = ["Rupy", "Request", "Response"]
+__all__ = ["Rupy", "Request", "Response", "UploadFile"]
 
