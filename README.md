@@ -19,6 +19,7 @@ A high-performance web framework for Python, powered by Rust and Axum.
 - ✅ Static file serving via decorators
 - ✅ Reverse proxy support via decorators
 - ✅ OpenAPI/Swagger JSON endpoint
+- ✅ File upload support with streaming (memory-efficient)
 
 ## Installation
 
@@ -360,6 +361,62 @@ def auth_middleware(request: Request):
 
 For complete examples, see:
 - `examples/cookies_auth_example.py` - Cookie and auth token handling
+
+### File Upload
+
+Handle file uploads efficiently with the `@app.upload()` decorator. Files are streamed directly to disk without being loaded into memory, making it suitable for large files.
+
+```python
+from rupy import Rupy, Request, Response, UploadFile
+from typing import List
+
+app = Rupy()
+
+# Basic file upload
+@app.upload("/upload")
+def handle_upload(request: Request, files: List[UploadFile]) -> Response:
+    for file in files:
+        print(f"Uploaded: {file.filename}")
+        print(f"Size: {file.size} bytes")
+        print(f"MIME type: {file.content_type}")
+        print(f"Saved at: {file.path}")
+    return Response("Files uploaded successfully")
+
+# Upload with MIME type filtering
+@app.upload("/upload-images", accepted_mime_types=["image/*"])
+def upload_images(request: Request, files: List[UploadFile]) -> Response:
+    return Response(f"Uploaded {len(files)} images")
+
+# Upload with size limit (5MB)
+@app.upload("/upload-limited", max_size=5*1024*1024)
+def upload_limited(request: Request, files: List[UploadFile]) -> Response:
+    return Response("Upload successful")
+
+# Upload with all options
+@app.upload(
+    "/upload-docs",
+    accepted_mime_types=["application/pdf", "application/msword"],
+    max_size=10*1024*1024,  # 10MB
+    upload_dir="/var/uploads"
+)
+def upload_docs(request: Request, files: List[UploadFile]) -> Response:
+    return Response("Documents uploaded")
+```
+
+Upload features:
+- **Streaming uploads**: Files are written directly to disk to prevent memory overflow
+- **MIME type filtering**: Accept only specific file types (supports wildcards like `image/*`)
+- **Size limits**: Set maximum file size per upload
+- **Custom upload directory**: Specify where files should be stored (default: `/tmp`)
+- **Multiple files**: Handle multiple file uploads in a single request
+- **UploadFile attributes**:
+  - `filename`: Original filename
+  - `size`: File size in bytes
+  - `content_type`: MIME type
+  - `path`: Temporary file path on disk
+
+For a complete example, see:
+- `examples/upload_example.py` - File upload with web interface
 
 ### Static File Serving
 
