@@ -19,8 +19,8 @@ services:
 
   rupy-api:
     build:
-      context: .
-      dockerfile: rupy-pg-upsert-select/Dockerfile
+      context: ../../..
+      dockerfile: benchmark/load-test/rupy-pg-upsert-select/Dockerfile
     ports:
       - "8001:8000"
     environment:
@@ -35,8 +35,8 @@ services:
 
   fastapi-api:
     build:
-      context: .
-      dockerfile: fastapi-pg-upsert-select/Dockerfile
+      context: fastapi-pg-upsert-select
+      dockerfile: Dockerfile
     ports:
       - "8002:8000"
     environment:

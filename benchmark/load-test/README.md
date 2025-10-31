@@ -26,6 +26,8 @@ benchmark/load-test/
 │   └── requirements.txt    # Python dependencies
 ├── docker-compose.yml      # Orchestrates all services
 ├── locustfile.py          # Locust load testing script
+├── test_apis.py           # API compatibility test script
+├── benchmark.sh           # Helper script for running benchmarks
 └── README.md              # This file
 ```
 
@@ -36,6 +38,34 @@ benchmark/load-test/
 - Locust (for load testing)
 
 ## Quick Start
+
+### Using the Helper Script (Recommended)
+
+The easiest way to run the benchmarks is using the provided helper script:
+
+```bash
+cd benchmark/load-test
+
+# Start all services
+./benchmark.sh start
+
+# Test both APIs
+./benchmark.sh test
+
+# Run load tests
+./benchmark.sh bench-both
+
+# View logs
+./benchmark.sh logs
+
+# Stop services
+./benchmark.sh stop
+
+# See all options
+./benchmark.sh help
+```
+
+### Manual Setup
 
 ### 1. Build and Start Services
 
