@@ -15,7 +15,6 @@ use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
 use serde_json::json;
 use std::collections::HashMap;
-use std::fs::File;
 use std::io::Write;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -902,8 +901,6 @@ async fn process_multipart_upload(
     boundary: String,
     upload_config: &UploadConfig,
 ) -> Result<Vec<PyUploadFile>, String> {
-    use futures_util::stream::StreamExt;
-    
     // Convert Body to Stream for multer
     let stream = body.into_data_stream();
     let mut multipart = Multipart::new(stream, boundary);
@@ -952,12 +949,8 @@ async fn process_multipart_upload(
         std::fs::create_dir_all(&upload_dir)
             .map_err(|e| format!("Failed to create upload directory: {}", e))?;
 
-        let temp_file = NamedTempFile::new_in(&upload_dir)
+        let mut temp_file = NamedTempFile::new_in(&upload_dir)
             .map_err(|e| format!("Failed to create temp file: {}", e))?;
-
-        let temp_path = temp_file.path().to_string_lossy().to_string();
-        let mut file = File::create(&temp_path)
-            .map_err(|e| format!("Failed to open temp file for writing: {}", e))?;
 
         let mut total_size: u64 = 0;
 
@@ -973,8 +966,7 @@ async fn process_multipart_upload(
             // Check size limit
             if let Some(max_size) = upload_config.max_size {
                 if total_size > max_size {
-                    // Clean up the temp file
-                    let _ = std::fs::remove_file(&temp_path);
+                    // Clean up the temp file (it will be deleted when temp_file is dropped)
                     return Err(format!(
                         "File size ({} bytes) exceeds maximum allowed size ({} bytes)",
                         total_size, max_size
@@ -982,11 +974,11 @@ async fn process_multipart_upload(
                 }
             }
 
-            file.write_all(&chunk)
+            temp_file.write_all(&chunk)
                 .map_err(|e| format!("Failed to write to temp file: {}", e))?;
         }
 
-        file.flush()
+        temp_file.flush()
             .map_err(|e| format!("Failed to flush temp file: {}", e))?;
 
         // Persist the temp file (prevent it from being deleted)

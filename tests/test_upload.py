@@ -15,6 +15,7 @@ import time
 import requests
 import tempfile
 import os
+import json
 from rupy import Rupy, Request, Response, UploadFile
 from typing import List
 
@@ -40,7 +41,6 @@ class TestUploadDecorator(unittest.TestCase):
                     "content_type": file.content_type,
                     "path": file.path,
                 })
-            import json
             resp = Response(json.dumps(result))
             resp.set_header("Content-Type", "application/json")
             return resp
@@ -58,7 +58,6 @@ class TestUploadDecorator(unittest.TestCase):
                     "size": file.size,
                     "content_type": file.content_type,
                 })
-            import json
             resp = Response(json.dumps(result))
             resp.set_header("Content-Type", "application/json")
             return resp
@@ -69,7 +68,6 @@ class TestUploadDecorator(unittest.TestCase):
             upload_dir=cls.upload_dir
         )
         def upload_size_limit(request: Request, files: List[UploadFile]) -> Response:
-            import json
             resp = Response(json.dumps({"status": "success"}))
             resp.set_header("Content-Type", "application/json")
             return resp
@@ -121,19 +119,25 @@ class TestUploadDecorator(unittest.TestCase):
                 temp_files.append(f.name)
 
         try:
-            files = []
-            for i, temp_path in enumerate(temp_files):
-                files.append(('file', (f'test{i}.txt', open(temp_path, 'rb'), 'text/plain')))
-
-            response = requests.post(f"{self.base_url}/upload", files=files)
-
-            # Close file handles
-            for _, (_, fh, _) in files:
-                fh.close()
-
-            self.assertEqual(response.status_code, 200)
-            data = response.json()
-            self.assertEqual(len(data), 3)
+            # Open all files in a try-finally to ensure proper cleanup
+            file_handles = []
+            try:
+                for i, temp_path in enumerate(temp_files):
+                    fh = open(temp_path, 'rb')
+                    file_handles.append(fh)
+                
+                files = [(f'file{i}', (f'test{i}.txt', fh, 'text/plain')) 
+                         for i, fh in enumerate(file_handles)]
+                
+                response = requests.post(f"{self.base_url}/upload", files=files)
+                
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+                self.assertEqual(len(data), 3)
+            finally:
+                # Close all file handles
+                for fh in file_handles:
+                    fh.close()
         finally:
             for temp_path in temp_files:
                 os.unlink(temp_path)
