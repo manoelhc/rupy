@@ -929,18 +929,15 @@ async fn process_multipart_upload(
 
         // Check if MIME type is accepted
         if !upload_config.accepted_mime_types.is_empty() {
-            let mime_accepted = upload_config
-                .accepted_mime_types
-                .iter()
-                .any(|accepted| {
-                    // Support wildcard matching (e.g., "image/*")
-                    if accepted.ends_with("/*") {
-                        let prefix = &accepted[..accepted.len() - 2];
-                        content_type.starts_with(prefix)
-                    } else {
-                        &content_type == accepted
-                    }
-                });
+            let mime_accepted = upload_config.accepted_mime_types.iter().any(|accepted| {
+                // Support wildcard matching (e.g., "image/*")
+                if accepted.ends_with("/*") {
+                    let prefix = &accepted[..accepted.len() - 2];
+                    content_type.starts_with(prefix)
+                } else {
+                    &content_type == accepted
+                }
+            });
 
             if !mime_accepted {
                 return Err(format!(
@@ -980,11 +977,13 @@ async fn process_multipart_upload(
                 }
             }
 
-            temp_file.write_all(&chunk)
+            temp_file
+                .write_all(&chunk)
                 .map_err(|e| format!("Failed to write to temp file: {}", e))?;
         }
 
-        temp_file.flush()
+        temp_file
+            .flush()
             .map_err(|e| format!("Failed to flush temp file: {}", e))?;
 
         // Persist the temp file (prevent it from being deleted)
@@ -1079,10 +1078,7 @@ async fn handler_request(
     if let Some((ref route_info, _)) = matched_route {
         if route_info.is_upload {
             // This is an upload route, handle multipart data
-            let content_type = headers
-                .get("content-type")
-                .cloned()
-                .unwrap_or_default();
+            let content_type = headers.get("content-type").cloned().unwrap_or_default();
 
             // Extract boundary from content-type header
             // Parse boundary more robustly, handling quotes and spaces
@@ -1092,7 +1088,9 @@ async fn handler_request(
                 let boundary_str = boundary_str.trim();
                 if boundary_str.starts_with('"') && boundary_str.contains('"') {
                     // Remove surrounding quotes
-                    let end_quote = boundary_str[1..].find('"').unwrap_or(boundary_str.len() - 1);
+                    let end_quote = boundary_str[1..]
+                        .find('"')
+                        .unwrap_or(boundary_str.len() - 1);
                     boundary_str[1..=end_quote].to_string()
                 } else {
                     // Take until semicolon or end of string
@@ -1112,7 +1110,7 @@ async fn handler_request(
             };
 
             let upload_config = route_info.upload_config.as_ref().unwrap();
-            
+
             // Process the multipart upload
             match process_multipart_upload(request.into_body(), boundary, upload_config).await {
                 Ok(uploaded_files) => {
@@ -1134,9 +1132,7 @@ async fn handler_request(
                         }
 
                         // Call the handler with request and files
-                        let result = route_info
-                            .handler
-                            .call1(py, (py_request, py_files.clone()));
+                        let result = route_info.handler.call1(py, (py_request, py_files.clone()));
 
                         match result {
                             Ok(response) => {
