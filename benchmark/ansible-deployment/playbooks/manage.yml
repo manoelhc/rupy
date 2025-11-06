@@ -1,0 +1,76 @@
+---
+# Service management playbook
+- name: Manage Benchmark Services
+  hosts: all
+  become: true
+  gather_facts: false
+
+  vars:
+    action: "{{ action | default('status') }}"  # status, start, stop, restart
+
+  tasks:
+    - name: Manage application services
+      systemd:
+        name: "{{ item }}"
+        state: "{{ 'started' if action == 'start' else 'stopped' if action == 'stop' else 'restarted' if action == 'restart' else omit }}"
+      loop:
+        - app-rupy
+        - app-fastapi
+        - app-django
+        - app-flask
+        - app-robyn
+        - app-mrhttp
+      when: inventory_hostname in groups['apps'] and action in ['start', 'stop', 'restart']
+
+    - name: Manage PostgreSQL service
+      systemd:
+        name: postgresql
+        state: "{{ 'started' if action == 'start' else 'stopped' if action == 'stop' else 'restarted' if action == 'restart' else omit }}"
+      when: inventory_hostname in groups['database'] and action in ['start', 'stop', 'restart']
+
+    - name: Manage Locust service
+      systemd:
+        name: locust
+        state: "{{ 'started' if action == 'start' else 'stopped' if action == 'stop' else 'restarted' if action == 'restart' else omit }}"
+      when: inventory_hostname in groups['locust'] and action in ['start', 'stop', 'restart']
+
+    - name: Get service status - Apps
+      systemd:
+        name: "{{ item }}"
+      register: app_status
+      loop:
+        - app-rupy
+        - app-fastapi
+        - app-django
+        - app-flask
+        - app-robyn
+        - app-mrhttp
+      when: inventory_hostname in groups['apps'] and action == 'status'
+
+    - name: Get service status - Database
+      systemd:
+        name: postgresql
+      register: db_status
+      when: inventory_hostname in groups['database'] and action == 'status'
+
+    - name: Get service status - Locust
+      systemd:
+        name: locust
+      register: locust_status
+      when: inventory_hostname in groups['locust'] and action == 'status'
+
+    - name: Display service status
+      debug:
+        msg: "{{ item.item }}: {{ item.status.ActiveState }}"
+      loop: "{{ app_status.results }}"
+      when: inventory_hostname in groups['apps'] and action == 'status' and app_status is defined
+
+    - name: Display database status
+      debug:
+        msg: "postgresql: {{ db_status.status.ActiveState }}"
+      when: inventory_hostname in groups['database'] and action == 'status' and db_status is defined
+
+    - name: Display locust status
+      debug:
+        msg: "locust: {{ locust_status.status.ActiveState }}"
+      when: inventory_hostname in groups['locust'] and action == 'status' and locust_status is defined

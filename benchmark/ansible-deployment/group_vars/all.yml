@@ -1,0 +1,51 @@
+---
+# Global variables for all hosts
+
+# Database configuration
+db_host: "{{ hostvars['db-server']['ansible_host'] }}"
+db_port: 5432
+db_name: benchmark
+db_user: benchmark
+db_password: "benchmark_password_change_me"  # Change this!
+postgres_admin_password: "postgres_admin_change_me"  # Change this!
+
+# Application server configuration
+app_host: "{{ hostvars['app-server']['ansible_host'] }}"
+app_base_dir: /opt/benchmark/apps
+app_log_dir: /var/log/benchmark
+
+# Framework ports
+rupy_port: 8001
+fastapi_port: 8002
+django_port: 8003
+flask_port: 8004
+robyn_port: 8005
+mrhttp_port: 8006
+
+# Locust configuration
+locust_host: "{{ hostvars['locust-server']['ansible_host'] }}"
+locust_port: 8089
+locust_base_dir: /opt/benchmark/locust
+
+# System configuration
+install_dir: /opt/benchmark
+log_dir: /var/log/benchmark
+python_version: "3.11"
+
+# Application worker configuration
+gunicorn_workers: 4
+uvicorn_workers: 4
+
+# Repository configuration
+rupy_repo: https://github.com/manoelhc/rupy.git
+rupy_branch: main
+
+# Firewall configuration
+enable_firewall: true
+allowed_ssh_ips:
+  - 0.0.0.0/0  # Change this to your specific IP range for security
+
+# Monitoring configuration
+enable_monitoring: false
+prometheus_port: 9090
+grafana_port: 3000

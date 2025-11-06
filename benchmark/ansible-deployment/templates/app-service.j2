@@ -1,0 +1,25 @@
+[Unit]
+Description={{ app_name | capitalize }} Benchmark Application
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory={{ app_dir }}
+Environment="DB_HOST={{ db_host }}"
+Environment="DB_PORT={{ db_port }}"
+Environment="DB_NAME={{ db_name }}"
+Environment="DB_USER={{ db_user }}"
+Environment="DB_PASSWORD={{ db_password }}"
+ExecStart={{ app_cmd }}
+Restart=always
+RestartSec=10
+StandardOutput=append:{{ app_log_dir }}/{{ app_name }}.log
+StandardError=append:{{ app_log_dir }}/{{ app_name }}.error.log
+
+# Performance tuning
+LimitNOFILE=65536
+LimitNPROC=32768
+
+[Install]
+WantedBy=multi-user.target
