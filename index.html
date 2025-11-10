@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rupy - High-Performance Web Framework for Python</title>
+    <meta name="description" content="Rupy is a high-performance web framework for Python, powered by Rust and Axum. Build fast, scalable web applications with an intuitive Python API.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        code, pre {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .code-block {
+            background: #1e1e1e;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+        }
+        .nav-link {
+            transition: all 0.3s ease;
+        }
+        .nav-link:hover {
+            transform: translateY(-2px);
+        }
+        .feature-card {
+            transition: all 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .example-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .example-card:hover {
+            transform: translateY(-3px);
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+        .animate-fade-in {
+            animation: fadeIn 1s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="#" class="flex items-center">
+                        <span class="text-2xl font-bold gradient-text">Rupy</span>
+                    </a>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#features" class="nav-link text-gray-700 hover:text-purple-600 font-medium">Features</a>
+                    <a href="#installation" class="nav-link text-gray-700 hover:text-purple-600 font-medium">Installation</a>
+                    <a href="#quickstart" class="nav-link text-gray-700 hover:text-purple-600 font-medium">Quick Start</a>
+                    <a href="#examples" class="nav-link text-gray-700 hover:text-purple-600 font-medium">Examples</a>
+                    <a href="#docs" class="nav-link text-gray-700 hover:text-purple-600 font-medium">Documentation</a>
+                    <a href="https://github.com/manoelhc/rupy" target="_blank" class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                        </svg>
+                        GitHub
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="gradient-bg text-white py-20 md:py-32">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center animate-fade-in">
+                <h1 class="text-5xl md:text-7xl font-extrabold mb-6">
+                    Rupy
+                </h1>
+                <p class="text-xl md:text-2xl mb-4 text-purple-100">
+                    High-Performance Web Framework for Python
+                </p>
+                <p class="text-lg md:text-xl mb-10 text-purple-200 max-w-3xl mx-auto">
+                    Powered by Rust and Axum, Rupy delivers blazing-fast performance with the simplicity and elegance of Python. Build modern web applications with ease.
+                </p>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                    <a href="#quickstart" class="px-8 py-4 bg-white text-purple-600 font-bold rounded-lg hover:bg-purple-50 transition text-lg shadow-lg">
+                        Get Started
+                    </a>
+                    <a href="https://github.com/manoelhc/rupy" target="_blank" class="px-8 py-4 bg-transparent border-2 border-white text-white font-bold rounded-lg hover:bg-white hover:text-purple-600 transition text-lg">
+                        View on GitHub
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="py-20 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                    Why Choose Rupy?
+                </h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    Combining the performance of Rust with the simplicity of Python
+                </p>
+            </div>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Feature 1 -->
+                <div class="feature-card bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+                    <div class="w-14 h-14 bg-purple-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Lightning Fast</h3>
+                    <p class="text-gray-600">
+                        Built on Rust and Axum, Rupy delivers exceptional performance that rivals the fastest web frameworks available.
+                    </p>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="feature-card bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+                    <div class="w-14 h-14 bg-blue-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Simple API</h3>
+                    <p class="text-gray-600">
+                        Intuitive Python API that feels natural. Write clean, readable code with decorators and type hints.
+                    </p>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="feature-card bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+                    <div class="w-14 h-14 bg-green-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">All HTTP Methods</h3>
+                    <p class="text-gray-600">
+                        Full support for GET, POST, PUT, PATCH, DELETE, HEAD, and OPTIONS with convenient decorators.
+                    </p>
+                </div>
+
+                <!-- Feature 4 -->
+                <div class="feature-card bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+                    <div class="w-14 h-14 bg-yellow-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Dynamic Routes</h3>
+                    <p class="text-gray-600">
+                        Define dynamic path parameters with ease using angle brackets. Perfect for RESTful APIs.
+                    </p>
+                </div>
+
+                <!-- Feature 5 -->
+                <div class="feature-card bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+                    <div class="w-14 h-14 bg-red-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Middleware Support</h3>
+                    <p class="text-gray-600">
+                        Powerful middleware system for authentication, CORS, logging, rate limiting, and more.
+                    </p>
+                </div>
+
+                <!-- Feature 6 -->
+                <div class="feature-card bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+                    <div class="w-14 h-14 bg-indigo-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">OpenTelemetry</h3>
+                    <p class="text-gray-600">
+                        Built-in observability with OpenTelemetry for metrics, tracing, and structured logging.
+                    </p>
+                </div>
+
+                <!-- Feature 7 -->
+                <div class="feature-card bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+                    <div class="w-14 h-14 bg-pink-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-8 h-8 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Template Rendering</h3>
+                    <p class="text-gray-600">
+                        Handlebars template engine integration for dynamic HTML rendering with type-safe context.
+                    </p>
+                </div>
+
+                <!-- Feature 8 -->
+                <div class="feature-card bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+                    <div class="w-14 h-14 bg-cyan-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-8 h-8 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">File Upload</h3>
+                    <p class="text-gray-600">
+                        Efficient file upload handling with streaming, MIME type filtering, and size limits.
+                    </p>
+                </div>
+
+                <!-- Feature 9 -->
+                <div class="feature-card bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+                    <div class="w-14 h-14 bg-orange-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Static Files</h3>
+                    <p class="text-gray-600">
+                        Serve static files with automatic content-type detection and directory traversal protection.
+                    </p>
+                </div>
+
+                <!-- Feature 10 -->
+                <div class="feature-card bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+                    <div class="w-14 h-14 bg-teal-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-8 h-8 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Reverse Proxy</h3>
+                    <p class="text-gray-600">
+                        Forward requests to backend services with full header and body preservation.
+                    </p>
+                </div>
+
+                <!-- Feature 11 -->
+                <div class="feature-card bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+                    <div class="w-14 h-14 bg-violet-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-8 h-8 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">OpenAPI Support</h3>
+                    <p class="text-gray-600">
+                        Automatic OpenAPI/Swagger documentation generation for your API endpoints.
+                    </p>
+                </div>
+
+                <!-- Feature 12 -->
+                <div class="feature-card bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+                    <div class="w-14 h-14 bg-lime-100 rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-8 h-8 text-lime-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">Cookies & Auth</h3>
+                    <p class="text-gray-600">
+                        Built-in cookie handling and Bearer token authentication support for secure applications.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Installation Section -->
+    <section id="installation" class="py-20 bg-gray-50">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                    Installation
+                </h2>
+                <p class="text-xl text-gray-600">
+                    Get started with Rupy in minutes
+                </p>
+            </div>
+
+            <div class="space-y-8">
+                <!-- Option 1: PyPI -->
+                <div class="bg-white p-8 rounded-xl shadow-lg">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Add as Dependency</h3>
+                    <p class="text-gray-600 mb-4">Add Rupy to your <code class="bg-gray-100 px-2 py-1 rounded">pyproject.toml</code>:</p>
+                    <div class="code-block p-6">
+                        <pre class="text-sm text-gray-300"><code>[project]
+dependencies = [
+    "rupy @ git+https://github.com/manoelhc/rupy.git"
+]</code></pre>
+                    </div>
+                    <p class="text-gray-600 mt-4">Then install:</p>
+                    <div class="code-block p-6 mt-2">
+                        <pre class="text-sm text-gray-300"><code>pip install .</code></pre>
+                    </div>
+                </div>
+
+                <!-- Option 2: Build from Source -->
+                <div class="bg-white p-8 rounded-xl shadow-lg">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Build from Source</h3>
+                    <p class="text-gray-600 mb-4">For development or customization:</p>
+                    <div class="space-y-4">
+                        <div>
+                            <p class="text-gray-700 font-semibold mb-2">1. Install maturin:</p>
+                            <div class="code-block p-4">
+                                <pre class="text-sm text-gray-300"><code>pip install maturin</code></pre>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-gray-700 font-semibold mb-2">2. Build and install:</p>
+                            <div class="code-block p-4">
+                                <pre class="text-sm text-gray-300"><code>maturin develop</code></pre>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-gray-700 font-semibold mb-2">Or for production:</p>
+                            <div class="code-block p-4">
+                                <pre class="text-sm text-gray-300"><code>maturin build --release
+pip install target/wheels/rupy-*.whl</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Start Section -->
+    <section id="quickstart" class="py-20 bg-white">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                    Quick Start
+                </h2>
+                <p class="text-xl text-gray-600">
+                    Build your first Rupy application in seconds
+                </p>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="bg-gradient-to-r from-purple-600 to-purple-800 p-4">
+                    <h3 class="text-xl font-bold text-white">app.py</h3>
+                </div>
+                <div class="code-block p-6">
+                    <pre class="text-sm text-gray-300"><code>from rupy import Rupy, Request, Response
+
+app = Rupy()
+
+@app.route("/", methods=["GET"])
+def index(request: Request) -> Response:
+    return Response("Hello, World!")
+
+@app.route("/user/&lt;username&gt;", methods=["GET"])
+def get_user(request: Request, username: str) -> Response:
+    return Response(f"User: {username}")
+
+@app.route("/echo", methods=["POST"])
+def echo(request: Request) -> Response:
+    return Response(f"Echo: {request.body}")
+
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port=8000)</code></pre>
+                </div>
+            </div>
+
+            <div class="mt-8 bg-gray-50 rounded-xl p-6">
+                <h4 class="text-lg font-bold text-gray-900 mb-4">Run your application:</h4>
+                <div class="code-block p-4">
+                    <pre class="text-sm text-gray-300"><code>python app.py</code></pre>
+                </div>
+                <h4 class="text-lg font-bold text-gray-900 mt-6 mb-4">Test with curl:</h4>
+                <div class="code-block p-4">
+                    <pre class="text-sm text-gray-300"><code>curl http://127.0.0.1:8000/
+curl http://127.0.0.1:8000/user/alice
+curl -X POST -d '{"name": "test"}' http://127.0.0.1:8000/echo</code></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Documentation Section -->
+    <section id="docs" class="py-20 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                    Documentation
+                </h2>
+                <p class="text-xl text-gray-600">
+                    Everything you need to build powerful web applications
+                </p>
+            </div>
+
+            <!-- HTTP Methods -->
+            <div class="mb-16">
+                <h3 class="text-3xl font-bold text-gray-900 mb-8">HTTP Methods</h3>
+                <div class="bg-white rounded-xl shadow-lg p-8">
+                    <p class="text-gray-600 mb-6">Rupy provides convenient decorators for all HTTP methods:</p>
+                    <div class="code-block p-6">
+                        <pre class="text-sm text-gray-300"><code>@app.get("/items")
+def list_items(request: Request) -> Response:
+    return Response("List of items")
+
+@app.post("/items")
+def create_item(request: Request) -> Response:
+    return Response(f"Created: {request.body}")
+
+@app.put("/items/&lt;item_id&gt;")
+def update_item(request: Request, item_id: str) -> Response:
+    return Response(f"Updated item {item_id}")
+
+@app.patch("/items/&lt;item_id&gt;")
+def patch_item(request: Request, item_id: str) -> Response:
+    return Response(f"Patched item {item_id}")
+
+@app.delete("/items/&lt;item_id&gt;")
+def delete_item(request: Request, item_id: str) -> Response:
+    return Response(f"Deleted item {item_id}")</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dynamic Routes -->
+            <div class="mb-16">
+                <h3 class="text-3xl font-bold text-gray-900 mb-8">Dynamic Routes</h3>
+                <div class="bg-white rounded-xl shadow-lg p-8">
+                    <p class="text-gray-600 mb-6">Define dynamic path parameters using angle brackets:</p>
+                    <div class="code-block p-6">
+                        <pre class="text-sm text-gray-300"><code>@app.route("/user/&lt;username&gt;", methods=["GET"])
+def user_profile(request: Request, username: str) -> Response:
+    return Response(f"User Profile: {username}")
+
+@app.route("/blog/&lt;author&gt;/&lt;post_id&gt;", methods=["GET"])
+def blog_post(request: Request, author: str, post_id: str) -> Response:
+    return Response(f"Blog post {post_id} by {author}")
+
+@app.route("/products/&lt;category&gt;/&lt;product_id&gt;", methods=["GET"])
+def product_details(request: Request, category: str, product_id: str) -> Response:
+    return Response(f"Product {product_id} in category {category}")</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Middleware -->
+            <div class="mb-16">
+                <h3 class="text-3xl font-bold text-gray-900 mb-8">Middleware</h3>
+                <div class="space-y-8">
+                    <div class="bg-white rounded-xl shadow-lg p-8">
+                        <h4 class="text-2xl font-bold text-gray-900 mb-4">Basic Middleware</h4>
+                        <p class="text-gray-600 mb-6">Middlewares execute before route handlers and can inspect, modify, or block requests:</p>
+                        <div class="code-block p-6">
+                            <pre class="text-sm text-gray-300"><code>@app.middleware
+def logging_middleware(request: Request):
+    print(f"Processing {request.method} {request.path}")
+    return request  # Continue to next middleware/handler
+
+@app.middleware
+def auth_middleware(request: Request):
+    if request.path.startswith("/admin"):
+        return Response("Unauthorized", status=401)
+    return request</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-lg p-8">
+                        <h4 class="text-2xl font-bold text-gray-900 mb-4">CORS Middleware</h4>
+                        <p class="text-gray-600 mb-6">Handle cross-origin requests with CORS middleware:</p>
+                        <div class="code-block p-6">
+                            <pre class="text-sm text-gray-300"><code>@app.middleware
+def cors_middleware(request: Request):
+    # Handle preflight OPTIONS requests
+    if request.method == "OPTIONS":
+        return Response("", status=204)
+    return request</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-lg p-8">
+                        <h4 class="text-2xl font-bold text-gray-900 mb-4">JWT Authentication</h4>
+                        <p class="text-gray-600 mb-6">Protect routes with JWT authentication:</p>
+                        <div class="code-block p-6">
+                            <pre class="text-sm text-gray-300"><code>@app.middleware
+def jwt_auth_middleware(request: Request):
+    # Skip auth for public routes
+    if request.path in ["/", "/login", "/public"]:
+        return request
+    
+    # Check for protected routes
+    if request.path.startswith("/protected"):
+        # Validate JWT token from headers
+        return Response(
+            '{"error": "Unauthorized"}',
+            status=401
+        )
+    return request</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OpenTelemetry -->
+            <div class="mb-16">
+                <h3 class="text-3xl font-bold text-gray-900 mb-8">OpenTelemetry Support</h3>
+                <div class="space-y-8">
+                    <div class="bg-white rounded-xl shadow-lg p-8">
+                        <h4 class="text-2xl font-bold text-gray-900 mb-4">Enable Telemetry</h4>
+                        <p class="text-gray-600 mb-6">Programmatically enable OpenTelemetry:</p>
+                        <div class="code-block p-6">
+                            <pre class="text-sm text-gray-300"><code>app = Rupy()
+
+# Enable telemetry with optional configuration
+app.enable_telemetry(
+    endpoint="http://localhost:4317",  # OTLP gRPC endpoint
+    service_name="my-service"           # Service name for traces
+)
+
+# Check telemetry status
+is_enabled = app.is_telemetry_enabled()
+
+# Disable telemetry
+app.disable_telemetry()</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-lg p-8">
+                        <h4 class="text-2xl font-bold text-gray-900 mb-4">Environment Variables</h4>
+                        <p class="text-gray-600 mb-6">Configure telemetry using environment variables:</p>
+                        <div class="code-block p-6">
+                            <pre class="text-sm text-gray-300"><code>export OTEL_ENABLED=true
+export OTEL_SERVICE_NAME=my-service
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+export RUST_LOG=info
+
+python app.py</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-lg p-8">
+                        <h4 class="text-2xl font-bold text-gray-900 mb-4">Collected Metrics</h4>
+                        <div class="space-y-4">
+                            <div>
+                                <h5 class="text-lg font-semibold text-gray-900 mb-2">Automatic Metrics:</h5>
+                                <ul class="list-disc list-inside text-gray-600 space-y-2">
+                                    <li><code class="bg-gray-100 px-2 py-1 rounded">http.server.requests</code> - Total HTTP requests counter</li>
+                                    <li><code class="bg-gray-100 px-2 py-1 rounded">http.server.duration</code> - Request duration histogram</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h5 class="text-lg font-semibold text-gray-900 mb-2 mt-6">Tracing Attributes:</h5>
+                                <ul class="list-disc list-inside text-gray-600 space-y-2">
+                                    <li><code class="bg-gray-100 px-2 py-1 rounded">http.method</code> - HTTP method (GET, POST, etc.)</li>
+                                    <li><code class="bg-gray-100 px-2 py-1 rounded">http.route</code> - Matched route pattern</li>
+                                    <li><code class="bg-gray-100 px-2 py-1 rounded">http.scheme</code> - Protocol scheme (http/https)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cookies and Authentication -->
+            <div class="mb-16">
+                <h3 class="text-3xl font-bold text-gray-900 mb-8">Cookies and Authentication</h3>
+                <div class="space-y-8">
+                    <div class="bg-white rounded-xl shadow-lg p-8">
+                        <h4 class="text-2xl font-bold text-gray-900 mb-4">Cookie Handling</h4>
+                        <p class="text-gray-600 mb-6">Set, get, and delete cookies with full option support:</p>
+                        <div class="code-block p-6">
+                            <pre class="text-sm text-gray-300"><code>@app.route("/login", methods=["POST"])
+def login(request: Request) -> Response:
+    resp = Response('{"message": "Login successful"}')
+    
+    # Set a cookie with options
+    resp.set_cookie(
+        "session_id",
+        "abc123",
+        max_age=3600,        # Expires in 1 hour
+        http_only=True,      # Not accessible via JavaScript
+        secure=True,         # Only sent over HTTPS
+        same_site="Lax"      # CSRF protection
+    )
+    return resp
+
+@app.route("/profile", methods=["GET"])
+def profile(request: Request) -> Response:
+    # Read a cookie
+    session_id = request.get_cookie("session_id")
+    if not session_id:
+        return Response("Not logged in", status=401)
+    return Response(f"Session: {session_id}")</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-lg p-8">
+                        <h4 class="text-2xl font-bold text-gray-900 mb-4">Bearer Token Authentication</h4>
+                        <p class="text-gray-600 mb-6">Built-in support for Bearer token authentication:</p>
+                        <div class="code-block p-6">
+                            <pre class="text-sm text-gray-300"><code>@app.route("/protected", methods=["GET"])
+def protected(request: Request) -> Response:
+    # Get Bearer token from Authorization header
+    token = request.auth_token
+    
+    if not token:
+        return Response("Unauthorized", status=401)
+    
+    if token == "valid-token":
+        return Response("Access granted")
+    else:
+        return Response("Invalid token", status=401)</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Upload -->
+            <div class="mb-16">
+                <h3 class="text-3xl font-bold text-gray-900 mb-8">File Upload</h3>
+                <div class="bg-white rounded-xl shadow-lg p-8">
+                    <p class="text-gray-600 mb-6">Handle file uploads efficiently with streaming support:</p>
+                    <div class="code-block p-6">
+                        <pre class="text-sm text-gray-300"><code>from rupy import Rupy, Request, Response, UploadFile
+from typing import List
+
+app = Rupy()
+
+# Basic file upload
+@app.upload("/upload")
+def handle_upload(request: Request, files: List[UploadFile]) -> Response:
+    for file in files:
+        print(f"Uploaded: {file.filename}")
+        print(f"Size: {file.size} bytes")
+        print(f"MIME type: {file.content_type}")
+        print(f"Saved at: {file.path}")
+    return Response("Files uploaded successfully")
+
+# Upload with MIME type filtering and size limit
+@app.upload(
+    "/upload-images",
+    accepted_mime_types=["image/*"],
+    max_size=5*1024*1024  # 5MB limit
+)
+def upload_images(request: Request, files: List[UploadFile]) -> Response:
+    return Response(f"Uploaded {len(files)} images")</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Static Files -->
+            <div class="mb-16">
+                <h3 class="text-3xl font-bold text-gray-900 mb-8">Static File Serving</h3>
+                <div class="bg-white rounded-xl shadow-lg p-8">
+                    <p class="text-gray-600 mb-6">Serve static files from a directory:</p>
+                    <div class="code-block p-6">
+                        <pre class="text-sm text-gray-300"><code># Serve files from ./public directory at /static path
+@app.static("/static", "./public")
+def static_files():
+    pass
+
+# Files are accessible at /static/&lt;filename&gt;
+# Example: ./public/style.css -> http://localhost:8000/static/style.css</code></pre>
+                    </div>
+                    <p class="text-gray-600 mt-4">Features:</p>
+                    <ul class="list-disc list-inside text-gray-600 mt-2 space-y-1">
+                        <li>Automatic content-type detection</li>
+                        <li>Directory traversal protection</li>
+                        <li>Support for all common file types</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Reverse Proxy -->
+            <div class="mb-16">
+                <h3 class="text-3xl font-bold text-gray-900 mb-8">Reverse Proxy</h3>
+                <div class="bg-white rounded-xl shadow-lg p-8">
+                    <p class="text-gray-600 mb-6">Proxy requests to backend services:</p>
+                    <div class="code-block p-6">
+                        <pre class="text-sm text-gray-300"><code># Proxy all /api/* requests to backend service
+@app.proxy("/api", "http://backend:8080")
+def api_proxy():
+    pass
+
+# Requests to /api/* are forwarded to http://backend:8080/*
+# Example: /api/users -> http://backend:8080/users</code></pre>
+                    </div>
+                    <p class="text-gray-600 mt-4">Features:</p>
+                    <ul class="list-disc list-inside text-gray-600 mt-2 space-y-1">
+                        <li>Forwards all HTTP methods (GET, POST, PUT, PATCH, DELETE)</li>
+                        <li>Preserves request headers and body</li>
+                        <li>Returns response headers and body from backend</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- OpenAPI -->
+            <div class="mb-16">
+                <h3 class="text-3xl font-bold text-gray-900 mb-8">OpenAPI/Swagger Support</h3>
+                <div class="bg-white rounded-xl shadow-lg p-8">
+                    <p class="text-gray-600 mb-6">Enable automatic API documentation:</p>
+                    <div class="code-block p-6">
+                        <pre class="text-sm text-gray-300"><code>app = Rupy()
+
+# Enable OpenAPI endpoint
+app.enable_openapi(
+    path="/openapi.json",
+    title="My API",
+    version="1.0.0",
+    description="API documentation"
+)
+
+@app.route("/users", methods=["GET"])
+def list_users(request: Request) -> Response:
+    """List all users - this docstring can be used for API docs"""
+    return Response('[{"id": 1, "name": "Alice"}]')
+
+# Access the OpenAPI spec at http://localhost:8000/openapi.json
+
+# To disable:
+app.disable_openapi()</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Template Rendering -->
+            <div class="mb-16">
+                <h3 class="text-3xl font-bold text-gray-900 mb-8">Template Rendering</h3>
+                <div class="bg-white rounded-xl shadow-lg p-8">
+                    <p class="text-gray-600 mb-6">Use Handlebars templates for dynamic HTML rendering:</p>
+                    <div class="code-block p-6">
+                        <pre class="text-sm text-gray-300"><code>@app.template("/", template="hello.tpl")
+def index(request: Request) -> dict:
+    """Render template with context data"""
+    return {
+        "title": "Welcome Page",
+        "greeting": "Hello",
+        "name": "World",
+        "message": "Rendered with Handlebars!"
+    }
+
+@app.template("/user/&lt;username&gt;", template="user.tpl")
+def user_profile(request: Request, username: str) -> dict:
+    """Dynamic routes work with templates too"""
+    return {
+        "username": username,
+        "user_id": 12345
+    }</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Response Headers -->
+            <div class="mb-16">
+                <h3 class="text-3xl font-bold text-gray-900 mb-8">Response Headers</h3>
+                <div class="bg-white rounded-xl shadow-lg p-8">
+                    <p class="text-gray-600 mb-6">Access request headers and set custom response headers:</p>
+                    <div class="code-block p-6">
+                        <pre class="text-sm text-gray-300"><code>@app.route("/", methods=["GET"])
+def index(request: Request) -> Response:
+    # Access headers like a dictionary
+    user_agent = request.headers.get('user-agent', 'Unknown')
+    host = request.headers.get('host', 'Unknown')
+    
+    # Set custom response headers
+    resp = Response(f"User-Agent: {user_agent}")
+    resp.set_header('X-Custom-Header', 'MyValue')
+    resp.set_header('X-Powered-By', 'Rupy')
+    
+    return resp</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Examples Section -->
+    <section id="examples" class="py-20 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                    Examples
+                </h2>
+                <p class="text-xl text-gray-600">
+                    Learn from real-world examples
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Example 1 -->
+                <div class="example-card bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl border-2 border-purple-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">1</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Basic App</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">Simple GET and POST routes demonstrating the basics of Rupy.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/basic_app.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 2 -->
+                <div class="example-card bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border-2 border-blue-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">2</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">REST API</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">Complete RESTful API with all HTTP methods (GET, POST, PUT, PATCH, DELETE).</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/rest_api.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 3 -->
+                <div class="example-card bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl border-2 border-green-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">3</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Dynamic Routes</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">Demonstrates dynamic path parameters with multiple examples.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/dynamic_routes.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 4 -->
+                <div class="example-card bg-gradient-to-br from-yellow-50 to-yellow-100 p-6 rounded-xl border-2 border-yellow-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-yellow-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">4</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">All HTTP Methods</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">Comprehensive example showing all supported HTTP methods.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/all_methods.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 5 -->
+                <div class="example-card bg-gradient-to-br from-red-50 to-red-100 p-6 rounded-xl border-2 border-red-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">5</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Telemetry</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">OpenTelemetry integration for metrics, tracing, and logging.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/telemetry_example.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 6 -->
+                <div class="example-card bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-xl border-2 border-indigo-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">6</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">CORS Middleware</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">Cross-Origin Resource Sharing (CORS) middleware example.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/cors_middleware.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 7 -->
+                <div class="example-card bg-gradient-to-br from-pink-50 to-pink-100 p-6 rounded-xl border-2 border-pink-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-pink-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">7</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">JWT Authentication</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">JWT-based authentication middleware with protected routes.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/jwt_middleware.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 8 -->
+                <div class="example-card bg-gradient-to-br from-teal-50 to-teal-100 p-6 rounded-xl border-2 border-teal-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-teal-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">8</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Method Decorators</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">Using convenient method-specific decorators (@app.get, @app.post, etc.).</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/method_decorators.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 9 -->
+                <div class="example-card bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border-2 border-orange-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-orange-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">9</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Combined Middlewares</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">Multiple middlewares working together: logging, rate limiting, and auth.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/combined_middlewares.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 10 -->
+                <div class="example-card bg-gradient-to-br from-cyan-50 to-cyan-100 p-6 rounded-xl border-2 border-cyan-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-cyan-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">10</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Template Rendering</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">Handlebars template engine for dynamic HTML rendering.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/template_example.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 11 -->
+                <div class="example-card bg-gradient-to-br from-lime-50 to-lime-100 p-6 rounded-xl border-2 border-lime-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-lime-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">11</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Cookies & Auth</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">Cookie handling and Bearer token authentication examples.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/cookies_auth_example.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 12 -->
+                <div class="example-card bg-gradient-to-br from-amber-50 to-amber-100 p-6 rounded-xl border-2 border-amber-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-amber-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">12</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Response Headers</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">Access and set request/response headers with dict-like syntax.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/headers_example.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 13 -->
+                <div class="example-card bg-gradient-to-br from-rose-50 to-rose-100 p-6 rounded-xl border-2 border-rose-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-rose-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">13</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Static Files</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">Serve static files from a directory with auto content-type detection.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/static_files_example.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 14 -->
+                <div class="example-card bg-gradient-to-br from-violet-50 to-violet-100 p-6 rounded-xl border-2 border-violet-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-violet-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">14</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Reverse Proxy</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">Forward requests to backend services with full header preservation.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/reverse_proxy_example.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 15 -->
+                <div class="example-card bg-gradient-to-br from-fuchsia-50 to-fuchsia-100 p-6 rounded-xl border-2 border-fuchsia-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-fuchsia-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">15</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">OpenAPI</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">Automatic OpenAPI/Swagger documentation for your API.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/openapi_example.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 16 -->
+                <div class="example-card bg-gradient-to-br from-sky-50 to-sky-100 p-6 rounded-xl border-2 border-sky-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-sky-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">16</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">File Upload</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">Efficient file uploads with streaming, MIME filtering, and size limits.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/upload_example.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 17 -->
+                <div class="example-card bg-gradient-to-br from-emerald-50 to-emerald-100 p-6 rounded-xl border-2 border-emerald-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">17</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Geo Blocking</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">IP-based geographical access control middleware.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/geo_blocking_middleware.py</code>
+                    </div>
+                </div>
+
+                <!-- Example 18 -->
+                <div class="example-card bg-gradient-to-br from-slate-50 to-slate-100 p-6 rounded-xl border-2 border-slate-200">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 bg-slate-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">18</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">Rate Limiting</h3>
+                    </div>
+                    <p class="text-gray-700 mb-4">Rate limiting by IP and User-Agent for API protection.</p>
+                    <div class="text-sm text-gray-600">
+                        <code class="bg-white px-2 py-1 rounded">examples/rate_limiting_middleware.py</code>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-12 text-center">
+                <a href="https://github.com/manoelhc/rupy/tree/main/examples" target="_blank" class="inline-flex items-center px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition text-lg shadow-lg">
+                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    View All Examples on GitHub
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Performance Section -->
+    <section class="py-20 bg-gradient-to-br from-purple-600 to-purple-800 text-white">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-4xl md:text-5xl font-bold mb-4">
+                    Built for Performance
+                </h2>
+                <p class="text-xl text-purple-100">
+                    Powered by Rust and Axum for unmatched speed
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8 text-center">
+                <div class="bg-white/10 backdrop-blur-lg p-8 rounded-xl">
+                    <div class="text-5xl font-bold mb-2">🚀</div>
+                    <h3 class="text-2xl font-bold mb-2">Lightning Fast</h3>
+                    <p class="text-purple-100">Rust-powered backend delivers exceptional performance</p>
+                </div>
+                <div class="bg-white/10 backdrop-blur-lg p-8 rounded-xl">
+                    <div class="text-5xl font-bold mb-2">⚡</div>
+                    <h3 class="text-2xl font-bold mb-2">Low Latency</h3>
+                    <p class="text-purple-100">Handle thousands of requests with minimal overhead</p>
+                </div>
+                <div class="bg-white/10 backdrop-blur-lg p-8 rounded-xl">
+                    <div class="text-5xl font-bold mb-2">💪</div>
+                    <h3 class="text-2xl font-bold mb-2">Production Ready</h3>
+                    <p class="text-purple-100">Battle-tested Axum framework under the hood</p>
+                </div>
+            </div>
+
+            <div class="mt-12 bg-white/10 backdrop-blur-lg p-8 rounded-xl">
+                <h3 class="text-2xl font-bold mb-4">Benchmark Example</h3>
+                <div class="code-block p-4">
+                    <pre class="text-sm text-gray-300"><code>wrk -t12 -c400 -d30s http://127.0.0.1:8000/</code></pre>
+                </div>
+                <p class="text-purple-100 mt-4">
+                    Designed to outperform traditional Python frameworks like FastAPI and Flask
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid md:grid-cols-4 gap-8">
+                <div class="col-span-2">
+                    <h3 class="text-2xl font-bold gradient-text mb-4">Rupy</h3>
+                    <p class="text-gray-400 mb-4">
+                        A high-performance web framework for Python, powered by Rust and Axum.
+                    </p>
+                    <div class="flex space-x-4">
+                        <a href="https://github.com/manoelhc/rupy" target="_blank" class="text-gray-400 hover:text-white transition">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="text-lg font-bold mb-4">Documentation</h4>
+                    <ul class="space-y-2">
+                        <li><a href="#features" class="text-gray-400 hover:text-white transition">Features</a></li>
+                        <li><a href="#installation" class="text-gray-400 hover:text-white transition">Installation</a></li>
+                        <li><a href="#quickstart" class="text-gray-400 hover:text-white transition">Quick Start</a></li>
+                        <li><a href="#examples" class="text-gray-400 hover:text-white transition">Examples</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-lg font-bold mb-4">Resources</h4>
+                    <ul class="space-y-2">
+                        <li><a href="https://github.com/manoelhc/rupy" target="_blank" class="text-gray-400 hover:text-white transition">GitHub</a></li>
+                        <li><a href="https://github.com/manoelhc/rupy/issues" target="_blank" class="text-gray-400 hover:text-white transition">Issues</a></li>
+                        <li><a href="https://github.com/manoelhc/rupy/blob/main/LICENSE" target="_blank" class="text-gray-400 hover:text-white transition">License</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; 2025 Rupy. Released under the MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Smooth scroll script -->
+    <script>
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
