@@ -1,0 +1,17 @@
+# Ansible
+*.retry
+/tmp/
+.vault_pass
+*.log
+
+# Fact cache
+/ansible_facts/
+
+# Temporary files
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/

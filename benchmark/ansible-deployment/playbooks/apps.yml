@@ -1,0 +1,280 @@
+---
+# Application servers setup - all 6 frameworks
+- name: Setup Application Servers
+  hosts: apps
+  become: true
+  gather_facts: true
+
+  vars:
+    rupy_dir: "{{ app_base_dir }}/rupy"
+    fastapi_dir: "{{ app_base_dir }}/fastapi"
+    django_dir: "{{ app_base_dir }}/django"
+    flask_dir: "{{ app_base_dir }}/flask"
+    robyn_dir: "{{ app_base_dir }}/robyn"
+    mrhttp_dir: "{{ app_base_dir }}/mrhttp"
+
+  tasks:
+    - name: Install system dependencies
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+          - postgresql-client
+          - libpq-dev
+          - gcc
+          - g++
+          - make
+          - curl
+          - rustc
+          - cargo
+        state: present
+
+    - name: Install maturin for Rupy
+      pip:
+        name: maturin
+        state: present
+        executable: pip3
+
+    - name: Create app directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ app_base_dir }}"
+        - "{{ rupy_dir }}"
+        - "{{ fastapi_dir }}"
+        - "{{ django_dir }}"
+        - "{{ flask_dir }}"
+        - "{{ robyn_dir }}"
+        - "{{ mrhttp_dir }}"
+        - "{{ app_log_dir }}"
+
+    - name: Clone Rupy repository
+      git:
+        repo: "{{ rupy_repo }}"
+        dest: "{{ rupy_dir }}/repo"
+        version: "{{ rupy_branch }}"
+        force: yes
+
+    # Rupy setup
+    - name: Copy Rupy app
+      copy:
+        src: "{{ rupy_dir }}/repo/benchmark/load-test/rupy-pg-upsert-select/app.py"
+        dest: "{{ rupy_dir }}/app.py"
+        remote_src: yes
+
+    - name: Copy Rupy requirements
+      copy:
+        src: "{{ rupy_dir }}/repo/benchmark/load-test/rupy-pg-upsert-select/requirements.txt"
+        dest: "{{ rupy_dir }}/requirements.txt"
+        remote_src: yes
+
+    - name: Build and install Rupy
+      shell: |
+        cd {{ rupy_dir }}/repo
+        maturin build --release
+        pip3 install target/wheels/*.whl --force-reinstall
+      args:
+        executable: /bin/bash
+
+    - name: Install Rupy dependencies
+      pip:
+        requirements: "{{ rupy_dir }}/requirements.txt"
+        executable: pip3
+
+    # FastAPI setup
+    - name: Copy FastAPI app
+      copy:
+        src: "{{ rupy_dir }}/repo/benchmark/load-test/fastapi-pg-upsert-select/app.py"
+        dest: "{{ fastapi_dir }}/app.py"
+        remote_src: yes
+
+    - name: Copy FastAPI requirements
+      copy:
+        src: "{{ rupy_dir }}/repo/benchmark/load-test/fastapi-pg-upsert-select/requirements.txt"
+        dest: "{{ fastapi_dir }}/requirements.txt"
+        remote_src: yes
+
+    - name: Install FastAPI dependencies
+      pip:
+        requirements: "{{ fastapi_dir }}/requirements.txt"
+        executable: pip3
+
+    # Django setup
+    - name: Copy Django app
+      copy:
+        src: "{{ rupy_dir }}/repo/benchmark/load-test/django-pg-upsert-select/app.py"
+        dest: "{{ django_dir }}/app.py"
+        remote_src: yes
+
+    - name: Copy Django requirements
+      copy:
+        src: "{{ rupy_dir }}/repo/benchmark/load-test/django-pg-upsert-select/requirements.txt"
+        dest: "{{ django_dir }}/requirements.txt"
+        remote_src: yes
+
+    - name: Install Django dependencies
+      pip:
+        requirements: "{{ django_dir }}/requirements.txt"
+        executable: pip3
+
+    # Flask setup
+    - name: Copy Flask app
+      copy:
+        src: "{{ rupy_dir }}/repo/benchmark/load-test/flask-pg-upsert-select/app.py"
+        dest: "{{ flask_dir }}/app.py"
+        remote_src: yes
+
+    - name: Copy Flask requirements
+      copy:
+        src: "{{ rupy_dir }}/repo/benchmark/load-test/flask-pg-upsert-select/requirements.txt"
+        dest: "{{ flask_dir }}/requirements.txt"
+        remote_src: yes
+
+    - name: Install Flask dependencies
+      pip:
+        requirements: "{{ flask_dir }}/requirements.txt"
+        executable: pip3
+
+    # Robyn setup
+    - name: Copy Robyn app
+      copy:
+        src: "{{ rupy_dir }}/repo/benchmark/load-test/robyn-pg-upsert-select/app.py"
+        dest: "{{ robyn_dir }}/app.py"
+        remote_src: yes
+
+    - name: Copy Robyn requirements
+      copy:
+        src: "{{ rupy_dir }}/repo/benchmark/load-test/robyn-pg-upsert-select/requirements.txt"
+        dest: "{{ robyn_dir }}/requirements.txt"
+        remote_src: yes
+
+    - name: Install Robyn dependencies
+      pip:
+        requirements: "{{ robyn_dir }}/requirements.txt"
+        executable: pip3
+
+    # mrhttp setup
+    - name: Clone mrhttp repository
+      git:
+        repo: https://github.com/MarkReedZ/mrhttp.git
+        dest: "{{ mrhttp_dir }}/mrhttp-repo"
+        force: yes
+
+    - name: Install mrhttp
+      shell: |
+        cd {{ mrhttp_dir }}/mrhttp-repo
+        python3 setup.py install
+      args:
+        executable: /bin/bash
+
+    - name: Copy mrhttp app
+      copy:
+        src: "{{ rupy_dir }}/repo/benchmark/load-test/mrhttp-pg-upsert-select/app.py"
+        dest: "{{ mrhttp_dir }}/app.py"
+        remote_src: yes
+
+    - name: Copy mrhttp requirements
+      copy:
+        src: "{{ rupy_dir }}/repo/benchmark/load-test/mrhttp-pg-upsert-select/requirements.txt"
+        dest: "{{ mrhttp_dir }}/requirements.txt"
+        remote_src: yes
+
+    - name: Install mrhttp dependencies
+      pip:
+        requirements: "{{ mrhttp_dir }}/requirements.txt"
+        executable: pip3
+
+    # Create systemd services for all frameworks
+    - name: Create Rupy systemd service
+      template:
+        src: templates/app-service.j2
+        dest: /etc/systemd/system/app-rupy.service
+      vars:
+        app_name: rupy
+        app_dir: "{{ rupy_dir }}"
+        app_port: "{{ rupy_port }}"
+        app_cmd: "python3 app.py"
+
+    - name: Create FastAPI systemd service
+      template:
+        src: templates/app-service.j2
+        dest: /etc/systemd/system/app-fastapi.service
+      vars:
+        app_name: fastapi
+        app_dir: "{{ fastapi_dir }}"
+        app_port: "{{ fastapi_port }}"
+        app_cmd: "gunicorn --bind 0.0.0.0:{{ fastapi_port }} --workers {{ gunicorn_workers }} app:app"
+
+    - name: Create Django systemd service
+      template:
+        src: templates/app-service.j2
+        dest: /etc/systemd/system/app-django.service
+      vars:
+        app_name: django
+        app_dir: "{{ django_dir }}"
+        app_port: "{{ django_port }}"
+        app_cmd: "gunicorn --bind 0.0.0.0:{{ django_port }} --workers {{ gunicorn_workers }} app:application"
+
+    - name: Create Flask systemd service
+      template:
+        src: templates/app-service.j2
+        dest: /etc/systemd/system/app-flask.service
+      vars:
+        app_name: flask
+        app_dir: "{{ flask_dir }}"
+        app_port: "{{ flask_port }}"
+        app_cmd: "gunicorn --bind 0.0.0.0:{{ flask_port }} --workers {{ gunicorn_workers }} app:app"
+
+    - name: Create Robyn systemd service
+      template:
+        src: templates/app-service.j2
+        dest: /etc/systemd/system/app-robyn.service
+      vars:
+        app_name: robyn
+        app_dir: "{{ robyn_dir }}"
+        app_port: "{{ robyn_port }}"
+        app_cmd: "python3 app.py"
+
+    - name: Create mrhttp systemd service
+      template:
+        src: templates/app-service.j2
+        dest: /etc/systemd/system/app-mrhttp.service
+      vars:
+        app_name: mrhttp
+        app_dir: "{{ mrhttp_dir }}"
+        app_port: "{{ mrhttp_port }}"
+        app_cmd: "python3 app.py"
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Start and enable all app services
+      systemd:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop:
+        - app-rupy
+        - app-fastapi
+        - app-django
+        - app-flask
+        - app-robyn
+        - app-mrhttp
+
+    - name: Allow app ports through firewall
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "{{ rupy_port }}"
+        - "{{ fastapi_port }}"
+        - "{{ django_port }}"
+        - "{{ flask_port }}"
+        - "{{ robyn_port }}"
+        - "{{ mrhttp_port }}"
+      when: enable_firewall

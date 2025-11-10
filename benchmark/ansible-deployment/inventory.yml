@@ -1,0 +1,27 @@
+# Ansible Inventory for Benchmark Deployment
+# Update the ansible_host values with your actual server IPs or hostnames
+
+all:
+  vars:
+    ansible_user: ubuntu
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+  children:
+    # Locust load testing server
+    locust:
+      hosts:
+        locust-server:
+          ansible_host: 192.168.1.10  # Update with your Locust server IP
+
+    # Application servers (all 6 frameworks)
+    apps:
+      hosts:
+        app-server:
+          ansible_host: 192.168.1.11  # Update with your App server IP
+
+    # PostgreSQL database server
+    database:
+      hosts:
+        db-server:
+          ansible_host: 192.168.1.12  # Update with your Database server IP

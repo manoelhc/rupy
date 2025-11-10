@@ -1,0 +1,39 @@
+---
+# Main playbook - deploys all components
+- name: Deploy Benchmark Infrastructure
+  hosts: all
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+- import_playbook: playbooks/common.yml
+- import_playbook: playbooks/database.yml
+- import_playbook: playbooks/apps.yml
+- import_playbook: playbooks/locust.yml
+
+- name: Display deployment summary
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Show deployment information
+      debug:
+        msg:
+          - "==============================================="
+          - "Benchmark Infrastructure Deployed Successfully"
+          - "==============================================="
+          - "Database Server: {{ hostvars['db-server']['ansible_host'] }}:5432"
+          - "App Server (Rupy): {{ hostvars['app-server']['ansible_host'] }}:8001"
+          - "App Server (FastAPI): {{ hostvars['app-server']['ansible_host'] }}:8002"
+          - "App Server (Django): {{ hostvars['app-server']['ansible_host'] }}:8003"
+          - "App Server (Flask): {{ hostvars['app-server']['ansible_host'] }}:8004"
+          - "App Server (Robyn): {{ hostvars['app-server']['ansible_host'] }}:8005"
+          - "App Server (mrhttp): {{ hostvars['app-server']['ansible_host'] }}:8006"
+          - "Locust Web UI: http://{{ hostvars['locust-server']['ansible_host'] }}:8089"
+          - "==============================================="
+          - "Run tests with: ssh ubuntu@{{ hostvars['locust-server']['ansible_host'] }}"
+          - "Then: locust -f /opt/benchmark/locust/locustfile.py --host http://{{ hostvars['app-server']['ansible_host'] }}:8001"
