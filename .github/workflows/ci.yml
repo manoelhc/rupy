@@ -92,7 +92,7 @@ jobs:
         PYTHON_VERSION: "${{ matrix.python-version }}"
       run: |
         vpy="$(echo ${PYTHON_VERSION} | cut -d. -f1)$(echo ${PYTHON_VERSION} | cut -d. -f2)"
-        pip install target/wheels/rupy-*cp${vpy}*.whl
+        pip install target/wheels/rupy_api*cp${vpy}*.whl
       shell: bash
     
     - name: Test Python import

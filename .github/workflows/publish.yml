@@ -1,0 +1,132 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  test:
+    name: Test Package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+    - uses: actions/checkout@v5
+    
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+    
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+    
+    - name: Run Rust tests
+      run: cargo test --release
+    
+    - name: Install maturin
+      run: pip install maturin
+    
+    - name: Build Python package
+      run: maturin build --release
+    
+    - name: Install built wheel
+      env:
+        PYTHON_VERSION: ${{ matrix.python-version }}
+      run: |
+        vpy="$(echo ${PYTHON_VERSION} | cut -d. -f1)$(echo ${PYTHON_VERSION} | cut -d. -f2)"
+        pip install target/wheels/rupy_api*cp${vpy}*.whl
+    
+    - name: Test Python import
+      run: python -c "from rupy import Rupy; print('Successfully imported Rupy')"
+    
+    - name: Run Python tests
+      run: |
+        pip install pytest requests
+        pytest tests/
+
+  build-wheels:
+    name: Build wheels on ${{ matrix.os }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    permissions:
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v5
+    
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+    
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+    
+    - name: Install maturin
+      run: pip install maturin
+    
+    - name: Build wheels
+      run: maturin build --release
+    
+    - name: Upload wheels
+      uses: actions/upload-artifact@v5
+      with:
+        name: wheels-${{ matrix.os }}
+        path: target/wheels/*.whl
+
+  publish:
+    name: Publish to PyPI
+    needs: build-wheels
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/rupy-api
+    permissions:
+      id-token: write
+    
+    steps:
+    - uses: actions/checkout@v5
+    
+    - name: Download all wheels
+      uses: actions/download-artifact@v6
+      with:
+        pattern: wheels-*
+        path: dist
+        merge-multiple: true
+    
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+    
+    - name: Install Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+    
+    - name: Install maturin
+      run: pip install maturin
+    
+    - name: Build source distribution
+      run: maturin sdist
+    
+    - name: Copy sdist to dist
+      run: cp target/wheels/*.tar.gz dist/
+    
+    - name: List distribution files
+      run: ls -lh dist/
+    
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        packages-dir: dist/

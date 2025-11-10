@@ -8,16 +8,20 @@ name = "rupy"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.26", features = ["extension-module"] }
+pyo3 = { version = "0.27", features = ["extension-module"] }
 tokio = { version = "1.42", features = ["full"] }
 axum = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
-opentelemetry = "0.27"
-opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
-opentelemetry-otlp = { version = "0.27", features = ["metrics", "trace", "logs"] }
-opentelemetry-semantic-conventions = "0.27"
-tracing-opentelemetry = "0.27"
+opentelemetry = "0.31"
+opentelemetry_sdk = { version = "0.31", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.31", features = ["metrics", "trace", "logs"] }
+opentelemetry-semantic-conventions = "0.31"
+tracing-opentelemetry = "0.32"
 tower-http = { version = "0.6", features = ["trace"] }
+handlebars = "6.2"
+multer = "3.1"
+tempfile = "3.17"
+futures-util = "0.3"

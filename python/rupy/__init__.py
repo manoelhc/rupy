@@ -2,7 +2,7 @@
 Rupy - A high-performance web framework for Python, powered by Rust and Axum
 """
 
-from .rupy import Rupy as _RupyBase, PyRequest as Request, PyResponse as Response
+from .rupy import Rupy as _RupyBase, PyRequest as Request, PyResponse as Response, PyUploadFile as UploadFile
 from functools import wraps
 from typing import Callable, List, Optional
 
@@ -164,7 +164,381 @@ _RupyBase.delete = _create_method_decorator("DELETE")
 _RupyBase.head = _create_method_decorator("HEAD")
 _RupyBase.options = _create_method_decorator("OPTIONS")
 
+
+# Add static file serving decorator
+def _static_decorator(self, url_path: str, directory: str):
+    """
+    Decorator to serve static files from a directory.
+    
+    The decorated function receives a Response object with the file content
+    and can modify it before returning.
+    
+    Args:
+        url_path: URL path prefix (e.g., "/static")
+        directory: Local directory path to serve files from
+    
+    Example:
+        @app.static("/static", "./public")
+        def static_files(response: Response) -> Response:
+            # Optionally modify the response (add headers, etc.)
+            response.set_header("Cache-Control", "max-age=3600")
+            return response
+    """
+    import os
+    
+    def decorator(func: Callable):
+        # Create a handler that serves files from the directory
+        @wraps(func)
+        def static_handler(request: Request, filepath: str = "") -> Response:
+            # Build the full file path
+            full_path = os.path.join(directory, filepath)
+            
+            # Security check: prevent directory traversal
+            real_directory = os.path.realpath(directory)
+            real_path = os.path.realpath(full_path)
+            
+            if not real_path.startswith(real_directory):
+                resp = Response("Forbidden", status=403)
+                return func(resp)
+            
+            # Check if file exists and is a file (not directory)
+            if not os.path.exists(real_path) or not os.path.isfile(real_path):
+                resp = Response("Not Found", status=404)
+                return func(resp)
+            
+            # Read and return the file
+            try:
+                with open(real_path, 'rb') as f:
+                    content = f.read()
+                
+                # Determine content type based on file extension
+                content_type = _get_content_type(real_path)
+                
+                resp = Response(content.decode('utf-8', errors='replace'))
+                resp.set_header('Content-Type', content_type)
+                
+                # Call the user function with the response
+                return func(resp)
+            except Exception as e:
+                resp = Response(f"Error reading file: {str(e)}", status=500)
+                return func(resp)
+        
+        # Register the route with a wildcard pattern
+        route_pattern = f"{url_path}/<filepath:path>" if not url_path.endswith("/") else f"{url_path}<filepath:path>"
+        # For now, use a simpler pattern
+        route_pattern = f"{url_path}/<filepath>"
+        _original_rupy_route(self, route_pattern, static_handler, ["GET"])
+        
+        return func
+    
+    return decorator
+
+
+def _get_content_type(filepath: str) -> str:
+    """Get content type based on file extension"""
+    import mimetypes
+    content_type, _ = mimetypes.guess_type(filepath)
+    return content_type or 'application/octet-stream'
+
+
+_RupyBase.static = _static_decorator
+
+
+# Add reverse proxy decorator
+def _proxy_decorator(self, url_path: str, target_url: str):
+    """
+    Decorator to reverse proxy requests to another server.
+    
+    The decorated function receives a Response object with the proxied content
+    and can modify it before returning.
+    
+    Args:
+        url_path: URL path prefix to proxy (e.g., "/api")
+        target_url: Target server URL (e.g., "http://backend:8080")
+    
+    Example:
+        @app.proxy("/api", "http://backend:8080")
+        def api_proxy(response: Response) -> Response:
+            # Optionally modify the response (add headers, filter content, etc.)
+            response.set_header("X-Proxied-By", "Rupy")
+            return response
+    """
+    def decorator(func: Callable):
+        import urllib.request
+        import urllib.error
+        
+        @wraps(func)
+        def proxy_handler(request: Request, path: str = "") -> Response:
+            # Build the target URL
+            target = f"{target_url.rstrip('/')}/{path.lstrip('/')}"
+            
+            try:
+                # Create the proxied request
+                headers_dict = {}
+                for key, value in request.headers.items():
+                    # Skip hop-by-hop headers
+                    if key.lower() not in ['host', 'connection', 'transfer-encoding']:
+                        headers_dict[key] = value
+                
+                # Make the request to the target
+                req = urllib.request.Request(
+                    target,
+                    data=request.body.encode('utf-8') if request.body else None,
+                    headers=headers_dict,
+                    method=request.method
+                )
+                
+                with urllib.request.urlopen(req) as response:
+                    content = response.read().decode('utf-8')
+                    status = response.status
+                    
+                    # Create response
+                    resp = Response(content, status=status)
+                    
+                    # Copy response headers
+                    for key, value in response.headers.items():
+                        if key.lower() not in ['connection', 'transfer-encoding']:
+                            resp.set_header(key, value)
+                    
+                    # Call the user function with the response
+                    return func(resp)
+                    
+            except urllib.error.HTTPError as e:
+                resp = Response(e.read().decode('utf-8'), status=e.code)
+                return func(resp)
+            except urllib.error.URLError as e:
+                resp = Response(f"Proxy error: {str(e)}", status=502)
+                return func(resp)
+            except Exception as e:
+                resp = Response(f"Proxy error: {str(e)}", status=500)
+                return func(resp)
+        
+        # Register the route with a wildcard pattern
+        route_pattern = f"{url_path}/<path>"
+        _original_rupy_route(self, route_pattern, proxy_handler, ["GET", "POST", "PUT", "PATCH", "DELETE"])
+        
+        return func
+    
+    return decorator
+
+
+_RupyBase.proxy = _proxy_decorator
+
+
+# Add OpenAPI/Swagger support
+_openapi_configs = {}  # Store configs per app instance
+
+def _enable_openapi(
+    self, 
+    path: str = "/openapi.json",
+    title: str = "API Documentation",
+    version: str = "1.0.0",
+    description: str = ""
+):
+    """
+    Enable OpenAPI/Swagger JSON endpoint.
+    
+    Args:
+        path: URL path for the OpenAPI JSON endpoint (default: "/openapi.json")
+        title: API title
+        version: API version
+        description: API description
+    """
+    # Store config using object id as key
+    _openapi_configs[id(self)] = {
+        "enabled": True,
+        "path": path,
+        "title": title,
+        "version": version,
+        "description": description
+    }
+    
+    # Register the OpenAPI endpoint
+    @self.route(path, methods=["GET"])
+    def openapi_spec(request: Request) -> Response:
+        import json
+        spec = _generate_openapi_spec(self, title, version, description)
+        resp = Response(json.dumps(spec, indent=2))
+        resp.set_header("Content-Type", "application/json")
+        return resp
+
+
+def _disable_openapi(self):
+    """Disable OpenAPI/Swagger JSON endpoint."""
+    config_id = id(self)
+    if config_id in _openapi_configs:
+        _openapi_configs[config_id]["enabled"] = False
+
+
+def _generate_openapi_spec(app, title: str, version: str, description: str) -> dict:
+    """Generate OpenAPI 3.0 specification from registered routes."""
+    # This is a basic implementation - can be extended
+    spec = {
+        "openapi": "3.0.0",
+        "info": {
+            "title": title,
+            "version": version,
+            "description": description
+        },
+        "paths": {}
+    }
+    
+    # Try to extract route information if available
+    # For now, return a basic spec
+    # In a full implementation, we would introspect registered routes
+    
+    return spec
+
+
+_RupyBase.enable_openapi = _enable_openapi
+_RupyBase.disable_openapi = _disable_openapi
+
+
+# Add template decorator
+def _template_decorator(
+    self,
+    path: str,
+    template: str,
+    content_type: str = "text/html"
+):
+    """
+    Decorator to register a template route handler.
+    
+    The decorated function should return a dictionary that will be used
+    as the context for rendering the template using Handlebars.
+    
+    Args:
+        path: URL path pattern (e.g., "/", "/user/<username>")
+        template: Template filename (e.g., "index.tpl")
+        content_type: Response content type (default: "text/html")
+    
+    Example:
+        @app.template("/hello", template="hello.tpl")
+        def hello_page(request: Request) -> dict:
+            return {"name": "World", "greeting": "Hello"}
+    """
+    def decorator(func: Callable):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Call the handler function which should return a dict
+            result = func(*args, **kwargs)
+            # Ensure result is a dict
+            if not isinstance(result, dict):
+                raise TypeError(f"Template handler must return a dict, got {type(result)}")
+            return result
+        
+        # Register the template route with the Rust backend
+        # Use the internal route_template method
+        _RupyBase.route_template(
+            self,
+            path,
+            wrapper,
+            ["GET"],  # Default to GET for template routes
+            template,
+            content_type
+        )
+        
+        return func
+    
+    return decorator
+
+
+_RupyBase.template = _template_decorator
+
+
+# Add method to set template directory
+def _set_template_directory(self, directory: str):
+    """
+    Set the directory where template files are located.
+    
+    Args:
+        directory: Path to the template directory (default: "./template")
+    
+    Example:
+        app.set_template_directory("./templates")
+    """
+    _RupyBase.set_template_dir(self, directory)
+
+
+_RupyBase.set_template_directory = _set_template_directory
+
+
+def _get_template_directory(self) -> str:
+    """
+    Get the directory where template files are located.
+    
+    Returns:
+        str: Path to the template directory
+    
+    Example:
+        template_dir = app.get_template_directory()
+    """
+    return _RupyBase.get_template_dir(self)
+
+
+_RupyBase.get_template_directory = _get_template_directory
+
+
+# Add upload decorator
+def _upload_decorator(
+    self,
+    path: str,
+    accepted_mime_types: Optional[List[str]] = None,
+    max_size: Optional[int] = None,
+    upload_dir: Optional[str] = None,
+):
+    """
+    Decorator to register a file upload handler.
+    
+    The decorated function receives a Request object and a list of UploadFile objects.
+    Files are streamed to disk to avoid memory overflow.
+    
+    Args:
+        path: URL path pattern (e.g., "/upload")
+        accepted_mime_types: List of accepted MIME types (e.g., ["image/*", "application/pdf"])
+                           Empty list or None means all types accepted
+        max_size: Maximum file size in bytes (None means no limit)
+        upload_dir: Directory to store uploaded files (default: "/tmp")
+    
+    Example:
+        @app.upload("/upload", accepted_mime_types=["image/*"], max_size=10*1024*1024)
+        def handle_upload(request: Request, files: List[UploadFile]) -> Response:
+            for file in files:
+                print(f"Uploaded: {file.filename} ({file.size} bytes)")
+                print(f"Stored at: {file.path}")
+                print(f"MIME type: {file.content_type}")
+            return Response("Files uploaded successfully")
+    """
+    def decorator(func: Callable):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            result = func(*args, **kwargs)
+            # If the result is a string, wrap it in a Response
+            if isinstance(result, str):
+                return Response(result)
+            return result
+        
+        # Register the upload route with the Rust backend
+        _RupyBase.route_upload(
+            self,
+            path,
+            wrapper,
+            ["POST"],  # Upload routes typically use POST
+            accepted_mime_types,
+            max_size,
+            upload_dir,
+        )
+        
+        return func
+    
+    return decorator
+
+
+_RupyBase.upload = _upload_decorator
+
+
 # Export with the original name
 Rupy = _RupyBase
 
-__all__ = ["Rupy", "Request", "Response"]
+__all__ = ["Rupy", "Request", "Response", "UploadFile"]
+

@@ -14,10 +14,33 @@ A high-performance web framework for Python, powered by Rust and Axum.
 - ✅ JSON-formatted request logging
 - ✅ OpenTelemetry support for metrics, tracing, and logging
 - ✅ Middleware support for request/response processing
+- ✅ Cookie support (get/set cookies in requests and responses)
+- ✅ Authentication token support (Bearer token helper)
+- ✅ Static file serving via decorators
+- ✅ Reverse proxy support via decorators
+- ✅ OpenAPI/Swagger JSON endpoint
+- ✅ File upload support with streaming (memory-efficient)
 
 ## Installation
 
-### Adding as a Dependency
+### Installing from PyPI
+
+Once released, you can install Rupy from PyPI:
+
+```bash
+pip install rupy-api
+```
+
+Or add it to your `pyproject.toml`:
+
+```toml
+[project]
+dependencies = [
+    "rupy-api>=0.1.0"
+]
+```
+
+### Adding as a Dependency from GitHub
 
 To add Rupy as a dependency to your project using the GitHub repository, add the following to your `pyproject.toml`:
 
@@ -250,9 +273,235 @@ def jwt_auth_middleware(request: Request):
     return request
 ```
 
+For complete production-ready examples, see:
+- `examples/jwt_middleware.py` - JWT authentication with PyJWT library
+- `examples/cors_middleware.py` - CORS with configurable origins and credentials
+- `examples/geo_blocking_middleware.py` - IP-based geographical access control
+- `examples/rate_limiting_middleware.py` - Rate limiting by IP and User-Agent
+- `examples/combined_middlewares.py` - Multiple middlewares working together
+- `examples/MIDDLEWARE_README.md` - Comprehensive middleware documentation
+
+All middleware examples feature:
+- Production-ready implementations with real libraries
+- Security best practices and error handling
+- Detailed documentation and usage examples
+- Testing commands and load testing guidance
+
+### Cookies and Authentication
+
+Rupy provides built-in support for working with cookies and Bearer authentication tokens.
+
+#### Working with Cookies
+
+```python
+from rupy import Rupy, Request, Response
+
+app = Rupy()
+
+@app.route("/login", methods=["POST"])
+def login(request: Request) -> Response:
+    resp = Response('{"message": "Login successful"}')
+    
+    # Set a cookie with options
+    resp.set_cookie(
+        "session_id",
+        "abc123",
+        max_age=3600,        # Expires in 1 hour
+        http_only=True,      # Not accessible via JavaScript
+        secure=True,         # Only sent over HTTPS
+        same_site="Lax"      # CSRF protection
+    )
+    
+    return resp
+
+@app.route("/profile", methods=["GET"])
+def profile(request: Request) -> Response:
+    # Read a cookie
+    session_id = request.get_cookie("session_id")
+    
+    if not session_id:
+        return Response("Not logged in", status=401)
+    
+    return Response(f"Session: {session_id}")
+
+@app.route("/logout", methods=["POST"])
+def logout(request: Request) -> Response:
+    resp = Response('{"message": "Logged out"}')
+    
+    # Delete a cookie
+    resp.delete_cookie("session_id")
+    
+    return resp
+```
+
+#### Authentication Tokens
+
+```python
+@app.route("/protected", methods=["GET"])
+def protected(request: Request) -> Response:
+    # Get Bearer token from Authorization header
+    token = request.auth_token
+    
+    if not token:
+        return Response("Unauthorized", status=401)
+    
+    # Validate token (implement your own validation logic)
+    if token == "valid-token":
+        return Response("Access granted")
+    else:
+        return Response("Invalid token", status=401)
+
+@app.middleware
+def auth_middleware(request: Request):
+    """Add authentication token in middleware"""
+    if request.path.startswith("/internal"):
+        request.set_auth_token("internal-service-token")
+    return request
+```
+
 For complete examples, see:
-- `examples/cors_middleware.py` - CORS protection
-- `examples/jwt_middleware.py` - JWT authentication
+- `examples/cookies_auth_example.py` - Cookie and auth token handling
+
+### File Upload
+
+Handle file uploads efficiently with the `@app.upload()` decorator. Files are streamed directly to disk without being loaded into memory, making it suitable for large files.
+
+```python
+from rupy import Rupy, Request, Response, UploadFile
+from typing import List
+
+app = Rupy()
+
+# Basic file upload
+@app.upload("/upload")
+def handle_upload(request: Request, files: List[UploadFile]) -> Response:
+    for file in files:
+        print(f"Uploaded: {file.filename}")
+        print(f"Size: {file.size} bytes")
+        print(f"MIME type: {file.content_type}")
+        print(f"Saved at: {file.path}")
+    return Response("Files uploaded successfully")
+
+# Upload with MIME type filtering
+@app.upload("/upload-images", accepted_mime_types=["image/*"])
+def upload_images(request: Request, files: List[UploadFile]) -> Response:
+    return Response(f"Uploaded {len(files)} images")
+
+# Upload with size limit (5MB)
+@app.upload("/upload-limited", max_size=5*1024*1024)
+def upload_limited(request: Request, files: List[UploadFile]) -> Response:
+    return Response("Upload successful")
+
+# Upload with all options
+@app.upload(
+    "/upload-docs",
+    accepted_mime_types=["application/pdf", "application/msword"],
+    max_size=10*1024*1024,  # 10MB
+    upload_dir="/var/uploads"
+)
+def upload_docs(request: Request, files: List[UploadFile]) -> Response:
+    return Response("Documents uploaded")
+```
+
+Upload features:
+- **Streaming uploads**: Files are written directly to disk to prevent memory overflow
+- **MIME type filtering**: Accept only specific file types (supports wildcards like `image/*`)
+- **Size limits**: Set maximum file size per upload
+- **Custom upload directory**: Specify where files should be stored (default: `/tmp`)
+- **Multiple files**: Handle multiple file uploads in a single request
+- **UploadFile attributes**:
+  - `filename`: Original filename
+  - `size`: File size in bytes
+  - `content_type`: MIME type
+  - `path`: Temporary file path on disk
+
+For a complete example, see:
+- `examples/upload_example.py` - File upload with web interface
+
+### Static File Serving
+
+Serve static files from a directory using the `@app.static()` decorator.
+
+```python
+from rupy import Rupy, Request, Response
+
+app = Rupy()
+
+# Serve files from ./public directory at /static path
+@app.static("/static", "./public")
+def static_files():
+    pass
+
+# Now files in ./public are accessible at /static/<filename>
+# Example: ./public/style.css -> http://localhost:8000/static/style.css
+```
+
+The static file server includes:
+- Automatic content-type detection
+- Directory traversal protection
+- Support for all common file types
+
+For a complete example, see:
+- `examples/static_files_example.py` - Static file serving
+
+### Reverse Proxy
+
+Proxy requests to another backend service using the `@app.proxy()` decorator.
+
+```python
+from rupy import Rupy, Request, Response
+
+app = Rupy()
+
+# Proxy all /api/* requests to backend service
+@app.proxy("/api", "http://backend:8080")
+def api_proxy():
+    pass
+
+# Now requests to /api/* are forwarded to http://backend:8080/*
+# Example: /api/users -> http://backend:8080/users
+```
+
+The reverse proxy:
+- Forwards all HTTP methods (GET, POST, PUT, PATCH, DELETE)
+- Preserves request headers and body
+- Returns response headers and body from the backend
+
+For a complete example, see:
+- `examples/reverse_proxy_example.py` - Reverse proxy with backend
+
+### OpenAPI/Swagger Support
+
+Enable OpenAPI documentation for your API.
+
+```python
+from rupy import Rupy, Request, Response
+
+app = Rupy()
+
+# Enable OpenAPI endpoint
+app.enable_openapi(
+    path="/openapi.json",
+    title="My API",
+    version="1.0.0",
+    description="API documentation"
+)
+
+@app.route("/users", methods=["GET"])
+def list_users(request: Request) -> Response:
+    """List all users - this docstring can be used for API docs"""
+    return Response('[{"id": 1, "name": "Alice"}]')
+
+# Access the OpenAPI spec at http://localhost:8000/openapi.json
+```
+
+To disable the OpenAPI endpoint:
+```python
+app.disable_openapi()
+```
+
+For a complete example, see:
+- `examples/openapi_example.py` - OpenAPI documentation
 
 ### Testing Your Application
 
