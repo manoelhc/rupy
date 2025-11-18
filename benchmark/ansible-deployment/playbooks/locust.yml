@@ -1,0 +1,190 @@
+---
+# Locust load testing server setup
+- name: Setup Locust Load Testing Server
+  hosts: locust
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Install Python and pip
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+        state: present
+
+    - name: Install Locust
+      pip:
+        name:
+          - locust
+          - requests
+        state: present
+        executable: pip3
+
+    - name: Create Locust directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ locust_base_dir }}"
+        - "{{ locust_base_dir }}/reports"
+
+    - name: Clone Rupy repository for locustfile
+      git:
+        repo: "{{ rupy_repo }}"
+        dest: "{{ locust_base_dir }}/repo"
+        version: "{{ rupy_branch }}"
+        force: yes
+
+    - name: Copy locustfile
+      copy:
+        src: "{{ locust_base_dir }}/repo/benchmark/load-test/locustfile.py"
+        dest: "{{ locust_base_dir }}/locustfile.py"
+        remote_src: yes
+
+    - name: Create Locust web UI systemd service
+      copy:
+        dest: /etc/systemd/system/locust.service
+        content: |
+          [Unit]
+          Description=Locust Load Testing Web UI
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=root
+          WorkingDirectory={{ locust_base_dir }}
+          Environment="DB_HOST={{ db_host }}"
+          Environment="DB_PORT={{ db_port }}"
+          ExecStart=/usr/local/bin/locust -f {{ locust_base_dir }}/locustfile.py --web-host=0.0.0.0 --web-port={{ locust_port }} --master --expect-workers=1
+          Restart=always
+          RestartSec=10
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Start and enable Locust service
+      systemd:
+        name: locust
+        state: started
+        enabled: yes
+
+    - name: Allow Locust web UI port through firewall
+      ufw:
+        rule: allow
+        port: "{{ locust_port }}"
+        proto: tcp
+      when: enable_firewall
+
+    - name: Create test script
+      copy:
+        dest: "{{ locust_base_dir }}/run_test.sh"
+        mode: '0755'
+        content: |
+          #!/bin/bash
+          # Quick test script for running load tests
+
+          FRAMEWORK=${1:-rupy}
+          USERS=${2:-100}
+          SPAWN_RATE=${3:-10}
+          RUN_TIME=${4:-60s}
+
+          case $FRAMEWORK in
+            rupy)
+              PORT=8001
+              ;;
+            fastapi)
+              PORT=8002
+              ;;
+            django)
+              PORT=8003
+              ;;
+            flask)
+              PORT=8004
+              ;;
+            robyn)
+              PORT=8005
+              ;;
+            mrhttp)
+              PORT=8006
+              ;;
+            *)
+              echo "Unknown framework: $FRAMEWORK"
+              echo "Usage: $0 [rupy|fastapi|django|flask|robyn|mrhttp] [users] [spawn-rate] [run-time]"
+              exit 1
+              ;;
+          esac
+
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          REPORT_FILE="{{ locust_base_dir }}/reports/${FRAMEWORK}-${USERS}users-${TIMESTAMP}"
+
+          echo "Running load test for $FRAMEWORK on port $PORT"
+          echo "Users: $USERS, Spawn rate: $SPAWN_RATE, Run time: $RUN_TIME"
+          echo "Report will be saved to: ${REPORT_FILE}.html"
+
+          locust -f {{ locust_base_dir }}/locustfile.py \
+            --headless \
+            --users $USERS \
+            --spawn-rate $SPAWN_RATE \
+            --run-time $RUN_TIME \
+            --host "http://{{ app_host }}:$PORT" \
+            --html "${REPORT_FILE}.html" \
+            --csv "${REPORT_FILE}"
+
+          echo "Test complete! Report: ${REPORT_FILE}.html"
+
+    - name: Create readme for locust server
+      copy:
+        dest: "{{ locust_base_dir }}/README.txt"
+        content: |
+          Locust Load Testing Server
+          ===========================
+
+          Web UI: http://{{ locust_host }}:{{ locust_port }}
+
+          Quick Test Commands:
+          --------------------
+          # Test Rupy with 100 users for 60 seconds
+          {{ locust_base_dir }}/run_test.sh rupy 100 10 60s
+
+          # Test FastAPI
+          {{ locust_base_dir }}/run_test.sh fastapi 100 10 60s
+
+          # Test Django
+          {{ locust_base_dir }}/run_test.sh django 100 10 60s
+
+          # Test Flask
+          {{ locust_base_dir }}/run_test.sh flask 100 10 60s
+
+          # Test Robyn
+          {{ locust_base_dir }}/run_test.sh robyn 100 10 60s
+
+          # Test mrhttp
+          {{ locust_base_dir }}/run_test.sh mrhttp 100 10 60s
+
+          Manual Command:
+          ---------------
+          locust -f {{ locust_base_dir }}/locustfile.py \
+            --headless \
+            --users 100 \
+            --spawn-rate 10 \
+            --run-time 60s \
+            --host http://{{ app_host }}:8001 \
+            --html report.html
+
+          Reports are saved in: {{ locust_base_dir }}/reports/
+
+          Application Servers:
+          --------------------
+          Rupy:    http://{{ app_host }}:8001
+          FastAPI: http://{{ app_host }}:8002
+          Django:  http://{{ app_host }}:8003
+          Flask:   http://{{ app_host }}:8004
+          Robyn:   http://{{ app_host }}:8005
+          mrhttp:  http://{{ app_host }}:8006

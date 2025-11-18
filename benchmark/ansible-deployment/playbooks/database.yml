@@ -1,0 +1,103 @@
+---
+# PostgreSQL database server setup
+- name: Setup PostgreSQL Database Server
+  hosts: database
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Install PostgreSQL
+      apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+          - python3-psycopg2
+          - libpq-dev
+        state: present
+
+    - name: Ensure PostgreSQL is running
+      systemd:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    - name: Configure PostgreSQL to listen on all interfaces
+      lineinfile:
+        path: /etc/postgresql/16/main/postgresql.conf
+        regexp: '^#?listen_addresses'
+        line: "listen_addresses = '*'"
+        state: present
+      notify: restart postgresql
+
+    - name: Configure PostgreSQL authentication for benchmark user
+      lineinfile:
+        path: /etc/postgresql/16/main/pg_hba.conf
+        line: "host    {{ db_name }}    {{ db_user }}    {{ app_host }}/32    md5"
+        state: present
+      notify: restart postgresql
+
+    - name: Create benchmark database
+      become_user: postgres
+      postgresql_db:
+        name: "{{ db_name }}"
+        state: present
+
+    - name: Create benchmark user
+      become_user: postgres
+      postgresql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"
+        db: "{{ db_name }}"
+        priv: ALL
+        state: present
+
+    - name: Grant privileges to benchmark user
+      become_user: postgres
+      postgresql_privs:
+        database: "{{ db_name }}"
+        roles: "{{ db_user }}"
+        privs: ALL
+        type: database
+        state: present
+
+    - name: Create items table
+      become_user: postgres
+      postgresql_query:
+        db: "{{ db_name }}"
+        query: |
+          CREATE TABLE IF NOT EXISTS items (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            value VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE INDEX IF NOT EXISTS idx_items_name ON items(name);
+
+    - name: Configure PostgreSQL for performance
+      become_user: postgres
+      postgresql_query:
+        db: postgres
+        query: |
+          ALTER SYSTEM SET max_connections = 200;
+          ALTER SYSTEM SET shared_buffers = '256MB';
+          ALTER SYSTEM SET effective_cache_size = '1GB';
+          ALTER SYSTEM SET maintenance_work_mem = '64MB';
+          ALTER SYSTEM SET checkpoint_completion_target = 0.9;
+          ALTER SYSTEM SET wal_buffers = '16MB';
+          ALTER SYSTEM SET default_statistics_target = 100;
+      notify: restart postgresql
+
+    - name: Allow PostgreSQL through firewall from app server
+      ufw:
+        rule: allow
+        from_ip: "{{ app_host }}"
+        port: "{{ db_port }}"
+        proto: tcp
+      when: enable_firewall
+
+  handlers:
+    - name: restart postgresql
+      systemd:
+        name: postgresql
+        state: restarted

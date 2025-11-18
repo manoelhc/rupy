@@ -1,0 +1,89 @@
+---
+# Common setup for all servers
+- name: Common setup for all servers
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Set hostname
+      hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Update and upgrade apt packages
+      apt:
+        upgrade: dist
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install common packages
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+          - git
+          - curl
+          - wget
+          - vim
+          - htop
+          - net-tools
+          - ufw
+          - build-essential
+          - software-properties-common
+        state: present
+
+    - name: Configure UFW defaults
+      ufw:
+        direction: "{{ item.direction }}"
+        policy: "{{ item.policy }}"
+      loop:
+        - { direction: 'incoming', policy: 'deny' }
+        - { direction: 'outgoing', policy: 'allow' }
+      when: enable_firewall
+
+    - name: Allow SSH
+      ufw:
+        rule: allow
+        port: '22'
+        proto: tcp
+      when: enable_firewall
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+      when: enable_firewall
+
+    - name: Create benchmark directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ install_dir }}"
+        - "{{ log_dir }}"
+
+    - name: Configure system limits
+      pam_limits:
+        domain: '*'
+        limit_type: "{{ item.limit_type }}"
+        limit_item: "{{ item.limit_item }}"
+        value: "{{ item.value }}"
+      loop:
+        - { limit_type: 'soft', limit_item: 'nofile', value: '65536' }
+        - { limit_type: 'hard', limit_item: 'nofile', value: '65536' }
+        - { limit_type: 'soft', limit_item: 'nproc', value: '32768' }
+        - { limit_type: 'hard', limit_item: 'nproc', value: '32768' }
+
+    - name: Configure sysctl for performance
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: yes
+      loop:
+        - { name: 'net.core.somaxconn', value: '65535' }
+        - { name: 'net.ipv4.tcp_max_syn_backlog', value: '65535' }
+        - { name: 'net.ipv4.ip_local_port_range', value: '1024 65535' }
+        - { name: 'net.ipv4.tcp_tw_reuse', value: '1' }
+        - { name: 'net.ipv4.tcp_fin_timeout', value: '30' }
