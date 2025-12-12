@@ -36,7 +36,7 @@ Or add it to your `pyproject.toml`:
 ```toml
 [project]
 dependencies = [
-    "rupy-api>=0.1.0"
+    "rupy-api>=0.0.1"
 ]
 ```
 
@@ -47,7 +47,7 @@ To add Rupy as a dependency to your project using the GitHub repository, add the
 ```toml
 [project]
 dependencies = [
-    "rupy @ git+https://github.com/manoelhc/rupy.git"
+    "rupy-api @ git+https://github.com/manoelhc/rupy.git"
 ]
 ```
 
@@ -57,13 +57,13 @@ Or for a specific branch, tag, or commit:
 [project]
 dependencies = [
     # Using a specific branch
-    "rupy @ git+https://github.com/manoelhc/rupy.git@main",
+    "rupy-api @ git+https://github.com/manoelhc/rupy.git@main",
     
     # Using a specific tag
-    "rupy @ git+https://github.com/manoelhc/rupy.git@v0.1.0",
+    "rupy-api @ git+https://github.com/manoelhc/rupy.git@v0.0.1",
     
     # Using a specific commit
-    "rupy @ git+https://github.com/manoelhc/rupy.git@abc123",
+    "rupy-api @ git+https://github.com/manoelhc/rupy.git@abc123",
 ]
 ```
 
