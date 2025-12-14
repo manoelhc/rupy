@@ -185,8 +185,17 @@ def _static_decorator(self, url_path: str, directory: str):
             return response
     """
     import os
+    import sys
     
     def decorator(func: Callable):
+        # Validate directory exists when decorator is applied
+        if not os.path.exists(directory):
+            print(f"WARNING: Static directory does not exist: {directory}", file=sys.stderr)
+            print(f"         Static file serving for '{url_path}' may not work correctly.", file=sys.stderr)
+        elif not os.path.isdir(directory):
+            print(f"WARNING: Path exists but is not a directory: {directory}", file=sys.stderr)
+            print(f"         Static file serving for '{url_path}' may not work correctly.", file=sys.stderr)
+        
         # Create a handler that serves files from the directory
         @wraps(func)
         def static_handler(request: Request, filepath: str = "") -> Response:
@@ -194,15 +203,35 @@ def _static_decorator(self, url_path: str, directory: str):
             full_path = os.path.join(directory, filepath)
             
             # Security check: prevent directory traversal
-            real_directory = os.path.realpath(directory)
-            real_path = os.path.realpath(full_path)
+            try:
+                real_directory = os.path.realpath(directory)
+                real_path = os.path.realpath(full_path)
+            except Exception as e:
+                error_msg = f"Error resolving path: {str(e)}"
+                print(f"ERROR in static handler: {error_msg}", file=sys.stderr)
+                resp = Response(error_msg, status=500)
+                return func(resp)
             
             if not real_path.startswith(real_directory):
+                print(f"SECURITY: Directory traversal attempt blocked: {filepath}", file=sys.stderr)
                 resp = Response("Forbidden", status=403)
                 return func(resp)
             
+            # Check if directory exists
+            if not os.path.exists(real_directory):
+                error_msg = f"Static directory not found: {directory}"
+                print(f"ERROR in static handler: {error_msg}", file=sys.stderr)
+                resp = Response(error_msg, status=500)
+                return func(resp)
+            
             # Check if file exists and is a file (not directory)
-            if not os.path.exists(real_path) or not os.path.isfile(real_path):
+            if not os.path.exists(real_path):
+                print(f"File not found: {filepath} (resolved to: {real_path})", file=sys.stderr)
+                resp = Response("Not Found", status=404)
+                return func(resp)
+            
+            if not os.path.isfile(real_path):
+                print(f"Path is not a file: {filepath} (resolved to: {real_path})", file=sys.stderr)
                 resp = Response("Not Found", status=404)
                 return func(resp)
             
@@ -220,13 +249,13 @@ def _static_decorator(self, url_path: str, directory: str):
                 # Call the user function with the response
                 return func(resp)
             except Exception as e:
-                resp = Response(f"Error reading file: {str(e)}", status=500)
+                error_msg = f"Error reading file: {str(e)}"
+                print(f"ERROR in static handler: {error_msg}", file=sys.stderr)
+                resp = Response(error_msg, status=500)
                 return func(resp)
         
         # Register the route with a wildcard pattern
-        route_pattern = f"{url_path}/<filepath:path>" if not url_path.endswith("/") else f"{url_path}<filepath:path>"
-        # For now, use a simpler pattern
-        route_pattern = f"{url_path}/<filepath>"
+        route_pattern = f"{url_path}/<filepath:path>"
         _original_rupy_route(self, route_pattern, static_handler, ["GET"])
         
         return func
