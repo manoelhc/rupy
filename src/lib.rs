@@ -811,11 +811,11 @@ fn match_route(request_path: &str, route_pattern: &str) -> Option<Vec<String>> {
 
     while route_idx < route_parts.len() {
         let route_part = route_parts[route_idx];
-        
+
         if route_part.starts_with('<') && route_part.ends_with('>') {
             // This is a parameter
-            let param_content = &route_part[1..route_part.len()-1];
-            
+            let param_content = &route_part[1..route_part.len() - 1];
+
             // Check if it's a wildcard path parameter (e.g., <filepath:path>)
             if param_content.contains(":path") {
                 // Match all remaining request parts
@@ -1014,8 +1014,7 @@ fn py_dict_to_json(py: Python, py_dict: &Py<PyDict>) -> PyResult<serde_json::Val
             serde_json::Value::Number(i.into())
         } else if let Ok(f) = value.extract::<f64>() {
             serde_json::Value::Number(
-                serde_json::Number::from_f64(f)
-                    .unwrap_or_else(|| serde_json::Number::from(0)),
+                serde_json::Number::from_f64(f).unwrap_or_else(|| serde_json::Number::from(0)),
             )
         } else if let Ok(b) = value.extract::<bool>() {
             serde_json::Value::Bool(b)
@@ -1448,7 +1447,8 @@ async fn handler_request(
                             }
 
                             // Render the template
-                            let template_dirs = template_config.lock().unwrap().template_dirs.clone();
+                            let template_dirs =
+                                template_config.lock().unwrap().template_dirs.clone();
                             let template_name = route_info.template_name.as_ref().unwrap();
 
                             match render_template_with_dirs(
