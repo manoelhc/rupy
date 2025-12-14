@@ -20,6 +20,10 @@ A high-performance web framework for Python, powered by Rust and Axum.
 - ✅ Reverse proxy support via decorators
 - ✅ OpenAPI/Swagger JSON endpoint
 - ✅ File upload support with streaming (memory-efficient)
+- ✅ Template rendering with Handlebars
+- ✅ Template class for programmatic rendering
+- ✅ Multiple template directories with flexible lookup
+
 
 ## Installation
 

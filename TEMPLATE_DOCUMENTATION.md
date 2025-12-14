@@ -173,6 +173,89 @@ def home(request: Request) -> dict:
     return {"message": "Hello"}
 ```
 
+### Multiple Template Directories
+
+You can configure multiple template directories for flexible template lookup. Templates are searched in the order directories were added:
+
+```python
+app = Rupy()
+app.set_template_directory("./templates")      # Primary directory
+app.add_template_directory("./shared_templates")  # Fallback directory
+app.add_template_directory("./common_templates")  # Second fallback
+
+# Get all configured directories
+dirs = app.get_template_directories()
+print(f"Template directories: {dirs}")
+
+# Remove a directory if needed
+app.remove_template_directory("./common_templates")
+```
+
+**How it works:**
+- When rendering a template, Rupy searches each directory in order
+- The first matching template file is used
+- This allows for template override patterns and shared template libraries
+
+## Template Class for Programmatic Rendering
+
+The `Template` class allows you to render templates programmatically without creating a route. This is useful for generating emails, reports, or other dynamic content:
+
+```python
+from rupy import Rupy, Template
+
+app = Rupy()
+app.set_template_directory("./templates")
+
+# Create a template instance
+email_template = Template(app, "email.tpl")
+
+# Render with context data
+def send_welcome_email(user_email: str, user_name: str):
+    rendered = email_template.render({
+        "email": user_email,
+        "name": user_name,
+        "subject": "Welcome!",
+        "message": "Thanks for signing up!"
+    })
+    # Send the rendered email...
+    return rendered
+```
+
+**Template Class API:**
+
+- `Template(app, template_name)` - Create a template instance
+  - `app`: Rupy application instance
+  - `template_name`: Template filename (e.g., "email.tpl")
+
+- `template.render(context)` - Render the template
+  - `context`: Dictionary with template variables
+  - Returns: Rendered string
+
+**Example Use Cases:**
+
+1. **Email Generation**: Render email templates dynamically
+2. **Report Generation**: Create PDF or text reports
+3. **Data Export**: Generate CSV, JSON, or XML from templates
+4. **Batch Processing**: Render multiple templates in a loop
+
+```python
+from rupy import Rupy, Request, Template
+
+app = Rupy()
+
+@app.get("/send-report")
+def send_report(request: Request) -> str:
+    # Render report template programmatically
+    report = Template(app, "report.tpl")
+    rendered = report.render({
+        "title": "Monthly Report",
+        "data": "Sales: $10,000"
+    })
+    
+    # Could send via email, save to file, etc.
+    return rendered
+```
+
 ## Error Handling
 
 ### Missing Template File
@@ -210,10 +293,13 @@ Error: `Template handler must return a dict`
 3. **Return Type**: Always return a dict from template handlers
 4. **Variable Names**: Use clear, descriptive variable names in both Python and templates
 5. **Content Type**: Set appropriate content type for non-HTML templates
+6. **Multiple Directories**: Use primary directory for app-specific templates and fallback directories for shared templates
+7. **Template Class**: Use `Template` class for programmatic rendering (emails, reports, etc.)
 
 ## Examples
 
-See the `examples/template_example.py` file for a complete working example.
+- `examples/template_example.py` - Basic template decorator usage
+- `examples/template_class_example.py` - Template class and multiple directories
 
 ## Security Considerations
 
@@ -224,9 +310,10 @@ See the `examples/template_example.py` file for a complete working example.
 ## Troubleshooting
 
 ### Template not found
-- Verify template file exists in the configured directory
+- Verify template file exists in one of the configured directories
 - Check file name and extension match exactly
-- Use `app.get_template_directory()` to confirm directory path
+- Use `app.get_template_directories()` to see all search paths
+- Templates are searched in the order directories were added
 
 ### Variables not appearing
 - Ensure variable names in template match dict keys exactly
@@ -236,3 +323,8 @@ See the `examples/template_example.py` file for a complete working example.
 ### Content type issues
 - Specify `content_type` parameter if not using HTML
 - Ensure template syntax matches the content type (e.g., valid JSON for JSON templates)
+
+### Multiple directories priority
+- First directory has highest priority
+- Use `app.get_template_directories()` to check search order
+- Templates in earlier directories override those in later ones
