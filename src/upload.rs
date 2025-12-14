@@ -9,13 +9,13 @@ use tempfile::NamedTempFile;
 #[derive(Clone)]
 pub struct PyUploadFile {
     #[pyo3(get)]
-    filename: String,
+    pub filename: String,
     #[pyo3(get)]
     content_type: String,
     #[pyo3(get)]
-    size: u64,
+    pub size: u64,
     #[pyo3(get)]
-    path: String,
+    pub path: String,
 }
 
 #[pymethods]
@@ -61,7 +61,7 @@ pub async fn process_multipart_upload(
 ) -> Result<Vec<PyUploadFile>, String> {
     let stream = body.into_data_stream();
     let mut multipart = Multipart::new(stream, boundary);
-    let mut uploaded_files = Vec::new();
+    let mut uploaded_files: std::vec::Vec<PyUploadFile> = Vec::new();
 
     while let Some(mut field) = multipart
         .next_field()
@@ -115,6 +115,10 @@ pub async fn process_multipart_upload(
 
             if let Some(max_size) = upload_config.max_size {
                 if total_size > max_size {
+                    // Clean up any files already persisted in this request
+                    for uploaded in &uploaded_files {
+                        let _ = std::fs::remove_file(&uploaded.path);
+                    }
                     return Err(format!(
                         "File size ({} bytes) exceeds maximum allowed size ({} bytes)",
                         total_size, max_size

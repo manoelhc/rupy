@@ -65,18 +65,10 @@ pub fn record_metrics(
     status_code: u16,
     duration: std::time::Duration,
 ) {
-    let is_enabled = {
-        let config = telemetry_config.lock().unwrap();
-        config.enabled
-    };
-
-    if is_enabled {
-        let service_name = {
-            let config = telemetry_config.lock().unwrap();
-            config.service_name.clone()
-        };
-
-        let meter = global::meter(Box::leak(service_name.into_boxed_str()));
+    let config = telemetry_config.lock().unwrap();
+    if config.enabled {
+        // Use a fixed meter name or cache the meter elsewhere
+        let meter = global::meter("rupy");
         let counter = meter
             .u64_counter("http.server.requests")
             .with_description("Total number of HTTP requests")

@@ -27,7 +27,7 @@ pub async fn run_server(
     middlewares: Arc<Mutex<Vec<MiddlewareInfo>>>,
     telemetry_config: Arc<Mutex<TelemetryConfig>>,
     template_config: Arc<Mutex<crate::template::TemplateConfig>>,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     Python::initialize();
 
     let config = telemetry_config.lock().unwrap().clone();
@@ -58,20 +58,22 @@ pub async fn run_server(
         })
         .layer(TraceLayer::new_for_http());
 
-    let addr = format!("{}:{}", host, port).parse::<SocketAddr>().unwrap();
+    let addr = format!("{}:{}", host, port).parse::<SocketAddr>()?;
 
     info!("Starting Rupy server on http://{}", addr);
     println!("Starting Rupy server on http://{}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .map_err(|e| format!("Failed to bind to {}: {}", addr, e))?;
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
-        .await
-        .unwrap();
+        .await?;
 
     info!("Server shutdown complete");
     println!("Server shutdown complete");
+    Ok(())
 }
 
 async fn shutdown_signal() {
@@ -260,15 +262,22 @@ async fn handler_request(
             }
         }
     }
+    // TODO: make it configurable via app method
+    const MAX_BODY_SIZE: usize = 10 * 1024 * 1024; // 10MB default
 
     let body = if method == Method::POST
         || method == Method::PUT
         || method == Method::PATCH
         || method == Method::DELETE
     {
-        match axum::body::to_bytes(request.into_body(), usize::MAX).await {
+        match axum::body::to_bytes(request.into_body(), MAX_BODY_SIZE).await {
             Ok(bytes) => String::from_utf8_lossy(&bytes).to_string(),
-            Err(_) => String::new(),
+            Err(e) => {
+                error!("Body read error: {}", e);
+                let duration = start_time.elapsed();
+                record_metrics(&telemetry_config, &method_str, &path, 413, duration);
+                return (StatusCode::PAYLOAD_TOO_LARGE, "Request body too large").into_response();
+            }
         }
     } else {
         String::new()

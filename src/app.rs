@@ -248,7 +248,7 @@ impl Rupy {
 
         py.detach(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
-            runtime.block_on(async {
+            let _ = runtime.block_on(async {
                 run_server(
                     &host,
                     port,

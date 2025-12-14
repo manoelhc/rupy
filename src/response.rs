@@ -1,5 +1,6 @@
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::collections::HashMap;
@@ -60,7 +61,8 @@ impl PyResponse {
         http_only: bool,
         same_site: Option<String>,
     ) -> PyResult<()> {
-        let mut cookie = format!("{}={}", name, value);
+        let encoded_value = utf8_percent_encode(&value, NON_ALPHANUMERIC).to_string();
+        let mut cookie = format!("{}={}", name, encoded_value);
 
         if let Some(age) = max_age {
             cookie.push_str(&format!("; Max-Age={}", age));

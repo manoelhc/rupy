@@ -57,9 +57,10 @@ pub fn py_dict_to_json(py: Python, py_dict: &Py<PyDict>) -> PyResult<serde_json:
         } else if let Ok(i) = value.extract::<i64>() {
             serde_json::Value::Number(i.into())
         } else if let Ok(f) = value.extract::<f64>() {
-            serde_json::Value::Number(
-                serde_json::Number::from_f64(f).unwrap_or_else(|| serde_json::Number::from(0)),
-            )
+            match serde_json::Number::from_f64(f) {
+                Some(n) => serde_json::Value::Number(n),
+                None => serde_json::Value::Null, // NaN/infinity -> null
+            }
         } else if let Ok(b) = value.extract::<bool>() {
             serde_json::Value::Bool(b)
         } else if value.is_none() {

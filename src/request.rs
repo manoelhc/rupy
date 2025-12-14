@@ -88,7 +88,12 @@ impl PyRequest {
     /// Get the auth token from the Authorization header (Bearer token)
     #[getter]
     fn auth_token(&self, _py: Python) -> PyResult<Option<String>> {
-        if let Some(auth_header) = self.headers.get("authorization") {
+        let auth_header = self
+            .headers
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case("authorization"))
+            .map(|(_, v)| v);
+        if let Some(auth_header) = auth_header {
             if let Some(token) = auth_header.strip_prefix("Bearer ") {
                 return Ok(Some(token.to_string()));
             }
