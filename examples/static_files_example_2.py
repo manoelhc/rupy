@@ -44,8 +44,8 @@ def index(request: Request) -> Response:
 <html>
 <head>
     <title>Rupy Static Files Example</title>
+    <link rel="stylesheet" type="text/css" href="/static/css/styles.css">
 </head>
-<link rel="stylesheet" type="text/css" href="/static/css/styles.css">
 <body>
     <h1>Rupy Static Files Example</h1>
     <p>This server demonstrates static file serving.</p>
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     print(f"\nStarting server on http://127.0.0.1:{port}")
     print("\nEndpoints:")
     print("  GET  /                    - Main page with links")
-    print("  GET  /static/css/style.css   - Static file serving")
+    print("  GET  /static/css/styles.css   - Static file serving")
     print("  GET  /api/files           - List available files (JSON)")
     print("\nExample commands:")
     print(f"  curl http://127.0.0.1:{port}/")
