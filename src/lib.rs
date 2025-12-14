@@ -344,6 +344,7 @@ struct TelemetryConfig {
 #[derive(Clone)]
 struct TemplateConfig {
     template_dir: String,
+    template_dirs: Vec<String>,
 }
 
 #[pyclass]
@@ -380,6 +381,7 @@ impl Rupy {
             })),
             template_config: Arc::new(Mutex::new(TemplateConfig {
                 template_dir: "./template".to_string(),
+                template_dirs: vec!["./template".to_string()],
             })),
         }
     }
@@ -491,7 +493,9 @@ impl Rupy {
     /// Set the template directory
     fn set_template_dir(&self, dir: String) -> PyResult<()> {
         let mut config = self.template_config.lock().unwrap();
-        config.template_dir = dir;
+        config.template_dir = dir.clone();
+        // Also clear and set the template_dirs to only this directory
+        config.template_dirs = vec![dir];
         Ok(())
     }
 
@@ -499,6 +503,48 @@ impl Rupy {
     fn get_template_dir(&self) -> PyResult<String> {
         let config = self.template_config.lock().unwrap();
         Ok(config.template_dir.clone())
+    }
+
+    /// Add a template directory to the search path
+    fn add_template_dir(&self, dir: String) -> PyResult<()> {
+        let mut config = self.template_config.lock().unwrap();
+        if !config.template_dirs.contains(&dir) {
+            config.template_dirs.push(dir);
+        }
+        Ok(())
+    }
+
+    /// Remove a template directory from the search path
+    fn remove_template_dir(&self, dir: String) -> PyResult<()> {
+        let mut config = self.template_config.lock().unwrap();
+        config.template_dirs.retain(|d| d != &dir);
+        Ok(())
+    }
+
+    /// Get all template directories
+    fn get_template_dirs(&self) -> PyResult<Vec<String>> {
+        let config = self.template_config.lock().unwrap();
+        Ok(config.template_dirs.clone())
+    }
+
+    /// Render a template with context data
+    fn render_template_string(
+        &self,
+        template_name: String,
+        context: Py<PyDict>,
+    ) -> PyResult<String> {
+        Python::attach(|py| {
+            let config = self.template_config.lock().unwrap();
+            let dirs = config.template_dirs.clone();
+            drop(config); // Release lock before rendering
+
+            // Convert Python dict to JSON value
+            let json_context = py_dict_to_json(py, &context)?;
+
+            // Try to render the template
+            render_template_with_dirs(&dirs, &template_name, &json_context)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e))
+        })
     }
 
     /// Enable OpenTelemetry tracing, metrics, and logging
@@ -905,23 +951,33 @@ fn build_response(py_response: PyResponse) -> axum::response::Response {
     (status_code, header_map, body).into_response()
 }
 
-// Render a template using Handlebars
-fn render_template(
-    template_dir: &str,
+// Render a template using Handlebars with multiple directory support
+fn render_template_with_dirs(
+    template_dirs: &[String],
     template_name: &str,
     context: &serde_json::Value,
 ) -> Result<String, String> {
     let mut handlebars = Handlebars::new();
 
-    // Build the full path to the template file
-    let template_path = PathBuf::from(template_dir).join(template_name);
+    // Try to find and read the template file from the list of directories
+    let mut template_content = None;
+    let mut tried_paths = Vec::new();
 
-    // Read the template file
-    let template_content = std::fs::read_to_string(&template_path).map_err(|e| {
+    for template_dir in template_dirs {
+        let template_path = PathBuf::from(template_dir).join(template_name);
+        tried_paths.push(template_path.display().to_string());
+
+        if let Ok(content) = std::fs::read_to_string(&template_path) {
+            template_content = Some(content);
+            break;
+        }
+    }
+
+    let template_content = template_content.ok_or_else(|| {
         format!(
-            "Failed to read template file '{}': {}",
-            template_path.display(),
-            e
+            "Failed to read template file '{}'. Tried paths: {}",
+            template_name,
+            tried_paths.join(", ")
         )
     })?;
 
@@ -934,6 +990,45 @@ fn render_template(
     handlebars
         .render("template", context)
         .map_err(|e| format!("Failed to render template: {}", e))
+}
+
+// Render a template using Handlebars (backward compatibility)
+fn render_template(
+    template_dir: &str,
+    template_name: &str,
+    context: &serde_json::Value,
+) -> Result<String, String> {
+    render_template_with_dirs(&[template_dir.to_string()], template_name, context)
+}
+
+// Helper function to convert Python dict to JSON
+fn py_dict_to_json(py: Python, py_dict: &Py<PyDict>) -> PyResult<serde_json::Value> {
+    let dict = py_dict.bind(py);
+    let mut context = serde_json::Map::new();
+
+    for (key, value) in dict.iter() {
+        let key_str = key.extract::<String>()?;
+        let json_value = if let Ok(s) = value.extract::<String>() {
+            serde_json::Value::String(s)
+        } else if let Ok(i) = value.extract::<i64>() {
+            serde_json::Value::Number(i.into())
+        } else if let Ok(f) = value.extract::<f64>() {
+            serde_json::Value::Number(
+                serde_json::Number::from_f64(f)
+                    .unwrap_or_else(|| serde_json::Number::from(0)),
+            )
+        } else if let Ok(b) = value.extract::<bool>() {
+            serde_json::Value::Bool(b)
+        } else if value.is_none() {
+            serde_json::Value::Null
+        } else {
+            // Try to convert to string as fallback
+            serde_json::Value::String(value.to_string())
+        };
+        context.insert(key_str, json_value);
+    }
+
+    Ok(serde_json::Value::Object(context))
 }
 
 // Process multipart file upload
@@ -1353,11 +1448,11 @@ async fn handler_request(
                             }
 
                             // Render the template
-                            let template_dir = template_config.lock().unwrap().template_dir.clone();
+                            let template_dirs = template_config.lock().unwrap().template_dirs.clone();
                             let template_name = route_info.template_name.as_ref().unwrap();
 
-                            match render_template(
-                                &template_dir,
+                            match render_template_with_dirs(
+                                &template_dirs,
                                 template_name,
                                 &serde_json::Value::Object(context),
                             ) {

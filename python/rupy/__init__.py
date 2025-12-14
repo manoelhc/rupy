@@ -508,6 +508,58 @@ def _get_template_directory(self) -> str:
 _RupyBase.get_template_directory = _get_template_directory
 
 
+def _add_template_directory(self, directory: str):
+    """
+    Add a directory to the template search path.
+    
+    Templates will be searched in the order directories were added.
+    
+    Args:
+        directory: Path to add to template search path
+    
+    Example:
+        app.add_template_directory("./templates")
+        app.add_template_directory("./shared_templates")
+    """
+    _RupyBase.add_template_dir(self, directory)
+
+
+_RupyBase.add_template_directory = _add_template_directory
+
+
+def _remove_template_directory(self, directory: str):
+    """
+    Remove a directory from the template search path.
+    
+    Args:
+        directory: Path to remove from template search path
+    
+    Example:
+        app.remove_template_directory("./templates")
+    """
+    _RupyBase.remove_template_dir(self, directory)
+
+
+_RupyBase.remove_template_directory = _remove_template_directory
+
+
+def _get_template_directories(self) -> List[str]:
+    """
+    Get all template directories in the search path.
+    
+    Returns:
+        List[str]: List of template directory paths
+    
+    Example:
+        dirs = app.get_template_directories()
+        print(f"Template directories: {dirs}")
+    """
+    return _RupyBase.get_template_dirs(self)
+
+
+_RupyBase.get_template_directories = _get_template_directories
+
+
 # Add upload decorator
 def _upload_decorator(
     self,
@@ -566,8 +618,61 @@ def _upload_decorator(
 _RupyBase.upload = _upload_decorator
 
 
+# Template class for standalone template rendering
+class Template:
+    """
+    A class for loading and rendering templates independently of routes.
+    
+    This allows you to render templates programmatically with context data,
+    useful for generating emails, reports, or other dynamic content.
+    
+    Example:
+        template = Template(app, "email.tpl")
+        rendered = template.render({"name": "John", "subject": "Welcome"})
+    """
+    
+    def __init__(self, app: _RupyBase, template_name: str):
+        """
+        Initialize a Template instance.
+        
+        Args:
+            app: The Rupy application instance (used to access template directories)
+            template_name: Name of the template file (e.g., "email.tpl")
+        """
+        self._app = app
+        self._template_name = template_name
+    
+    def render(self, context: dict) -> str:
+        """
+        Render the template with the given context data.
+        
+        Args:
+            context: Dictionary containing template variables
+        
+        Returns:
+            str: The rendered template as a string
+        
+        Raises:
+            RuntimeError: If template cannot be found or rendered
+        
+        Example:
+            template = Template(app, "greeting.tpl")
+            html = template.render({"name": "Alice", "greeting": "Hello"})
+        """
+        if not isinstance(context, dict):
+            raise TypeError(f"Context must be a dict, got {type(context)}")
+        
+        # Use the Rust backend to render the template
+        return _RupyBase.render_template_string(self._app, self._template_name, context)
+    
+    @property
+    def template_name(self) -> str:
+        """Get the template name."""
+        return self._template_name
+
+
 # Export with the original name
 Rupy = _RupyBase
 
-__all__ = ["Rupy", "Request", "Response", "UploadFile"]
+__all__ = ["Rupy", "Request", "Response", "UploadFile", "Template"]
 
