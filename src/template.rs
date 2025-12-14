@@ -1,6 +1,6 @@
 use handlebars::Handlebars;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyDict, PyList, PyTuple};
 use std::path::PathBuf;
 
 #[derive(Clone)]
@@ -52,24 +52,81 @@ pub fn py_dict_to_json(py: Python, py_dict: &Py<PyDict>) -> PyResult<serde_json:
 
     for (key, value) in dict.iter() {
         let key_str = key.extract::<String>()?;
-        let json_value = if let Ok(s) = value.extract::<String>() {
-            serde_json::Value::String(s)
-        } else if let Ok(i) = value.extract::<i64>() {
-            serde_json::Value::Number(i.into())
-        } else if let Ok(f) = value.extract::<f64>() {
-            match serde_json::Number::from_f64(f) {
-                Some(n) => serde_json::Value::Number(n),
-                None => serde_json::Value::Null, // NaN/infinity -> null
-            }
-        } else if let Ok(b) = value.extract::<bool>() {
-            serde_json::Value::Bool(b)
-        } else if value.is_none() {
-            serde_json::Value::Null
-        } else {
-            serde_json::Value::String(value.to_string())
-        };
+        let json_value = py_obj_to_json(py, value)?;
         context.insert(key_str, json_value);
     }
 
     Ok(serde_json::Value::Object(context))
+}
+
+fn py_obj_to_json(_py: Python, obj: pyo3::Bound<'_, PyAny>) -> PyResult<serde_json::Value> {
+    // Dict
+    if let Ok(dict) = obj.cast::<PyDict>() {
+        let mut map = serde_json::Map::new();
+        for (k, v) in dict.iter() {
+            let key = k.extract::<String>()?;
+            let val = py_obj_to_json(_py, v)?;
+            map.insert(key, val);
+        }
+        return Ok(serde_json::Value::Object(map));
+    }
+
+    // List
+    if let Ok(list) = obj.cast::<PyList>() {
+        let mut vec = Vec::with_capacity(list.len());
+        for item in list.iter() {
+            vec.push(py_obj_to_json(_py, item)?);
+        }
+        return Ok(serde_json::Value::Array(vec));
+    }
+
+    // Tuple
+    if let Ok(tuple) = obj.cast::<PyTuple>() {
+        let mut vec = Vec::with_capacity(tuple.len());
+        for item in tuple.iter() {
+            vec.push(py_obj_to_json(_py, item)?);
+        }
+        return Ok(serde_json::Value::Array(vec));
+    }
+
+    // Scalars
+    if let Ok(s) = obj.extract::<String>() {
+        return Ok(serde_json::Value::String(s));
+    }
+    if let Ok(i) = obj.extract::<i64>() {
+        return Ok(serde_json::Value::Number(i.into()));
+    }
+    if let Ok(f) = obj.extract::<f64>() {
+        if let Some(n) = serde_json::Number::from_f64(f) {
+            return Ok(serde_json::Value::Number(n));
+        } else {
+            return Ok(serde_json::Value::Null);
+        }
+    }
+    if let Ok(b) = obj.extract::<bool>() {
+        return Ok(serde_json::Value::Bool(b));
+    }
+    if obj.is_none() {
+        return Ok(serde_json::Value::Null);
+    }
+    // Try common object conversions: datetimes via `isoformat()`
+    if let Ok(iso_obj) = obj.call_method0("isoformat") {
+        if let Ok(iso_str) = iso_obj.extract::<String>() {
+            return Ok(serde_json::Value::String(iso_str));
+        }
+    }
+
+    // Try Decimal-like objects: take string repr and parse as f64 if possible
+    if let Ok(s) = obj.str() {
+        let s = s.to_string();
+        if let Ok(f) = s.parse::<f64>() {
+            if let Some(n) = serde_json::Number::from_f64(f) {
+                return Ok(serde_json::Value::Number(n));
+            }
+        }
+        return Ok(serde_json::Value::String(s));
+    }
+
+    // Fallback (should be unreachable): null
+    Ok(serde_json::Value::Null)
 }
