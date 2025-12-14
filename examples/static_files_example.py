@@ -131,7 +131,7 @@ if __name__ == "__main__":
     print("\n" + "=" * 70)
     
     try:
-        app.run(host="127.0.0.1", port=8000)
+        app.run(host="127.0.0.1", port=8009)
     finally:
         # Clean up temp directory
         import shutil

@@ -754,27 +754,62 @@ fn parse_path_params(path: &str) -> Vec<String> {
 // Match request path against route patterns and extract parameters
 fn match_route(request_path: &str, route_pattern: &str) -> Option<Vec<String>> {
     // Simple string matching for exact paths and basic parameter extraction
+    // Supports wildcard path parameters like <param:path> that match remaining segments
 
     let route_parts: Vec<&str> = route_pattern.split('/').collect();
     let request_parts: Vec<&str> = request_path.split('/').collect();
 
-    if route_parts.len() != request_parts.len() {
-        return None;
-    }
-
     let mut params = Vec::new();
+    let mut route_idx = 0;
+    let mut request_idx = 0;
 
-    for (route_part, request_part) in route_parts.iter().zip(request_parts.iter()) {
+    while route_idx < route_parts.len() {
+        let route_part = route_parts[route_idx];
+        
         if route_part.starts_with('<') && route_part.ends_with('>') {
             // This is a parameter
-            params.push(request_part.to_string());
-        } else if route_part != request_part {
-            // Literal parts must match exactly
-            return None;
+            let param_content = &route_part[1..route_part.len()-1];
+            
+            // Check if it's a wildcard path parameter (e.g., <filepath:path>)
+            if param_content.contains(":path") {
+                // Match all remaining request parts
+                if request_idx < request_parts.len() {
+                    let remaining = &request_parts[request_idx..];
+                    params.push(remaining.join("/"));
+                    request_idx = request_parts.len();
+                    route_idx += 1;
+                } else {
+                    // No remaining parts to match
+                    params.push(String::new());
+                    route_idx += 1;
+                }
+            } else {
+                // Regular parameter - match one segment
+                if request_idx < request_parts.len() {
+                    params.push(request_parts[request_idx].to_string());
+                    request_idx += 1;
+                    route_idx += 1;
+                } else {
+                    // Not enough request parts
+                    return None;
+                }
+            }
+        } else {
+            // Literal part must match exactly
+            if request_idx >= request_parts.len() || route_part != request_parts[request_idx] {
+                return None;
+            }
+            request_idx += 1;
+            route_idx += 1;
         }
     }
 
-    Some(params)
+    // All route parts matched; check if all request parts were consumed
+    if request_idx == request_parts.len() {
+        Some(params)
+    } else {
+        None
+    }
 }
 
 // Helper function to record metrics
