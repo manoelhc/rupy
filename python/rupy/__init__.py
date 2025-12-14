@@ -660,7 +660,7 @@ class Template:
             html = template.render({"name": "Alice", "greeting": "Hello"})
         """
         if not isinstance(context, dict):
-            raise TypeError(f"Context must be a dict, got {type(context)}")
+            raise TypeError(f"Context must be a dict, got {type(context).__name__}")
         
         # Use the Rust backend to render the template
         return _RupyBase.render_template_string(self._app, self._template_name, context)

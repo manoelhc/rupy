@@ -182,18 +182,18 @@ class TestTemplateDirectoryConfiguration(unittest.TestCase):
         """Test that set_template_directory replaces the entire list."""
         app = Rupy()
         
-        # Add multiple directories
-        app.add_template_directory("/dir1")
-        app.add_template_directory("/dir2")
+        # Add multiple directories (using relative paths for cross-platform compatibility)
+        app.add_template_directory("./dir1")
+        app.add_template_directory("./dir2")
         dirs = app.get_template_directories()
         self.assertGreater(len(dirs), 1)
         
         # Set new directory should replace all
-        app.set_template_directory("/new_dir")
+        app.set_template_directory("./new_dir")
         dirs = app.get_template_directories()
         self.assertEqual(len(dirs), 1)
-        self.assertEqual(dirs[0], "/new_dir")
-        self.assertEqual(app.get_template_directory(), "/new_dir")
+        self.assertEqual(dirs[0], "./new_dir")
+        self.assertEqual(app.get_template_directory(), "./new_dir")
 
 
 if __name__ == "__main__":
