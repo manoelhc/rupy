@@ -213,7 +213,7 @@ async fn handler_request(
                         .into_response();
                 }
             };
-            
+
             // Process middleware for upload routes
             let middleware_result_upload = {
                 let middlewares_lock = middlewares.lock().unwrap();
@@ -271,7 +271,7 @@ async fn handler_request(
                 }
                 Err(modified_request) => modified_request,
             };
-            
+
             let content_type = headers.get("content-type").cloned().unwrap_or_default();
 
             let boundary = if let Some(boundary_start) = content_type.find("boundary=") {
