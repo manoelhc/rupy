@@ -168,8 +168,110 @@ async fn handler_request(
         matched
     };
 
+    // Check if this is an upload route first, but don't process yet
+    let is_upload_route = if let Some((ref route_info, _)) = matched_route {
+        route_info.is_upload
+    } else {
+        false
+    };
+
+    // For upload routes, we need to process middleware before consuming the body
+    // For non-upload routes, we read the body first
+    let (body, request_body) = if is_upload_route {
+        // Don't consume the body yet for upload routes
+        (String::new(), Some(request))
+    } else if method == Method::POST
+        || method == Method::PUT
+        || method == Method::PATCH
+        || method == Method::DELETE
+    {
+        // TODO: make it configurable via app method
+        const MAX_BODY_SIZE: usize = 10 * 1024 * 1024; // 10MB default
+        match axum::body::to_bytes(request.into_body(), MAX_BODY_SIZE).await {
+            Ok(bytes) => (String::from_utf8_lossy(&bytes).to_string(), None),
+            Err(e) => {
+                error!("Body read error: {}", e);
+                let duration = start_time.elapsed();
+                record_metrics(&telemetry_config, &method_str, &path, 413, duration);
+                return (StatusCode::PAYLOAD_TOO_LARGE, "Request body too large").into_response();
+            }
+        }
+    } else {
+        (String::new(), None)
+    };
+
+    // Now handle upload routes with middleware applied
     if let Some((ref route_info, _)) = matched_route {
         if route_info.is_upload {
+            let request_body = match request_body {
+                Some(body) => body,
+                None => {
+                    error!("Upload route missing request body");
+                    let duration = start_time.elapsed();
+                    record_metrics(&telemetry_config, &method_str, &path, 500, duration);
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
+                        .into_response();
+                }
+            };
+
+            // Process middleware for upload routes
+            let middleware_result_upload = {
+                let middlewares_lock = middlewares.lock().unwrap();
+                let middlewares_list = middlewares_lock.clone();
+                drop(middlewares_lock);
+
+                Python::attach(|py| {
+                    let mut py_request = PyRequest::from_parts(
+                        method_str.clone(),
+                        path.clone(),
+                        String::new(), // No body for upload routes in middleware
+                        headers.clone(),
+                        cookies.clone(),
+                    );
+
+                    for middleware_info in middlewares_list.iter() {
+                        let result = middleware_info.handler.call1(py, (py_request.clone(),));
+
+                        match result {
+                            Ok(response) => {
+                                if let Ok(py_response) = response.extract::<PyResponse>(py) {
+                                    let status_u16 = py_response.status;
+                                    return Ok((build_response(py_response), status_u16));
+                                }
+                                if let Ok(updated_request) = response.extract::<PyRequest>(py) {
+                                    py_request = updated_request;
+                                }
+                            }
+                            Err(e) => {
+                                error!("Error calling middleware: {:?}", e);
+                                return Ok((
+                                    (StatusCode::INTERNAL_SERVER_ERROR, "Middleware Error")
+                                        .into_response(),
+                                    500,
+                                ));
+                            }
+                        }
+                    }
+
+                    // Return the modified request
+                    Err(py_request)
+                })
+            };
+
+            // Check if middleware returned an early response
+            let py_request_after_middleware = match middleware_result_upload {
+                Ok((response, status_code)) => {
+                    let duration = start_time.elapsed();
+                    record_metrics(&telemetry_config, &method_str, &path, status_code, duration);
+                    info!(
+                        "Request completed: {} - Duration: {:?}",
+                        status_code, duration
+                    );
+                    return response;
+                }
+                Err(modified_request) => modified_request,
+            };
+
             let content_type = headers.get("content-type").cloned().unwrap_or_default();
 
             let boundary = if let Some(boundary_start) = content_type.find("boundary=") {
@@ -198,16 +300,12 @@ async fn handler_request(
 
             let upload_config = route_info.upload_config.as_ref().unwrap();
 
-            match process_multipart_upload(request.into_body(), boundary, upload_config).await {
+            match process_multipart_upload(request_body.into_body(), boundary, upload_config).await
+            {
                 Ok(uploaded_files) => {
                     let resp = Python::attach(|py| {
-                        let py_request = PyRequest::from_parts(
-                            method_str.clone(),
-                            path.clone(),
-                            String::new(),
-                            headers.clone(),
-                            cookies.clone(),
-                        );
+                        // Use the modified request from middleware
+                        let py_request = py_request_after_middleware.clone();
 
                         let py_files = pyo3::types::PyList::empty(py);
                         for file in uploaded_files {
@@ -262,27 +360,8 @@ async fn handler_request(
             }
         }
     }
-    // TODO: make it configurable via app method
-    const MAX_BODY_SIZE: usize = 10 * 1024 * 1024; // 10MB default
 
-    let body = if method == Method::POST
-        || method == Method::PUT
-        || method == Method::PATCH
-        || method == Method::DELETE
-    {
-        match axum::body::to_bytes(request.into_body(), MAX_BODY_SIZE).await {
-            Ok(bytes) => String::from_utf8_lossy(&bytes).to_string(),
-            Err(e) => {
-                error!("Body read error: {}", e);
-                let duration = start_time.elapsed();
-                record_metrics(&telemetry_config, &method_str, &path, 413, duration);
-                return (StatusCode::PAYLOAD_TOO_LARGE, "Request body too large").into_response();
-            }
-        }
-    } else {
-        String::new()
-    };
-
+    // Process middleware and get either an early response or modified request
     let middleware_result = {
         let middlewares_lock = middlewares.lock().unwrap();
         let middlewares_list = middlewares_lock.clone();
@@ -304,7 +383,7 @@ async fn handler_request(
                     Ok(response) => {
                         if let Ok(py_response) = response.extract::<PyResponse>(py) {
                             let status_u16 = py_response.status;
-                            return Some((build_response(py_response), status_u16));
+                            return Ok((build_response(py_response), status_u16));
                         }
                         if let Ok(updated_request) = response.extract::<PyRequest>(py) {
                             py_request = updated_request;
@@ -312,7 +391,7 @@ async fn handler_request(
                     }
                     Err(e) => {
                         error!("Error calling middleware: {:?}", e);
-                        return Some((
+                        return Ok((
                             (StatusCode::INTERNAL_SERVER_ERROR, "Middleware Error").into_response(),
                             500,
                         ));
@@ -320,19 +399,24 @@ async fn handler_request(
                 }
             }
 
-            None
+            // Return the modified request wrapped in Err to distinguish from early responses
+            Err(py_request)
         })
     };
 
-    if let Some((response, status_code)) = middleware_result {
-        let duration = start_time.elapsed();
-        record_metrics(&telemetry_config, &method_str, &path, status_code, duration);
-        info!(
-            "Request completed: {} - Duration: {:?}",
-            status_code, duration
-        );
-        return response;
-    }
+    // Check if middleware returned an early response
+    let py_request_after_middleware = match middleware_result {
+        Ok((response, status_code)) => {
+            let duration = start_time.elapsed();
+            record_metrics(&telemetry_config, &method_str, &path, status_code, duration);
+            info!(
+                "Request completed: {} - Duration: {:?}",
+                status_code, duration
+            );
+            return response;
+        }
+        Err(modified_request) => modified_request,
+    };
 
     let (response, status_code) = if let Some((route_info, param_values)) = matched_route {
         let handler_span =
@@ -340,13 +424,8 @@ async fn handler_request(
         let _handler_enter = handler_span.enter();
 
         let resp = Python::attach(|py| {
-            let py_request = PyRequest::from_parts(
-                method_str.clone(),
-                path.clone(),
-                body,
-                headers.clone(),
-                cookies.clone(),
-            );
+            // Use the modified request from middleware instead of creating a new one
+            let py_request = py_request_after_middleware.clone();
 
             let result = if param_values.is_empty() {
                 route_info.handler.call1(py, (py_request,))
