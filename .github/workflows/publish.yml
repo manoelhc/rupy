@@ -71,6 +71,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+      - name: Update pyproject.toml version with the tag (removing the leading 'v')
+        run: |
+          if sed -i "s/version = \"[0-9.]*\"/version = \"$version\"/" pyproject.toml; then
+            echo "✓ Updated version to $version"
+          else
+            echo "✗ Failed to update version in pyproject.toml"
+            exit 1
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v6
