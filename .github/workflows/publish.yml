@@ -18,8 +18,9 @@ jobs:
         with:
           python-version: "3.12"
       - name: Update pyproject.toml version with the tag (removing the leading 'v')
+        shell: bash
         run: |
-          pip install toml-cli==0.82
+          python -m pip install toml-cli==0.8.2
           version=$(echo ${{ github.ref_name }} | cut -dv -f2)
           toml set --toml-path pyproject.toml project.version "$version"
       - name: Install Rust toolchain
@@ -70,8 +71,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Update pyproject.toml version with the tag (removing the leading 'v')
+        shell: bash
         run: |
-          pip install toml-cli==0.82
+          python -m pip install toml-cli==0.8.2
           version=$(echo ${{ github.ref_name }} | cut -dv -f2)
           toml set --toml-path pyproject.toml project.version "$version"
 
