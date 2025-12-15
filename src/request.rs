@@ -101,8 +101,15 @@ impl PyRequest {
         Ok(None)
     }
 
-    /// Set the auth token in the Authorization header (Bearer token)
+    /// Set the auth token in the Authorization header (Bearer token) - property setter
     #[setter(auth_token)]
+    fn set_auth_token_property(&mut self, _py: Python, token: String) -> PyResult<()> {
+        self.headers
+            .insert("authorization".to_string(), format!("Bearer {}", token));
+        Ok(())
+    }
+
+    /// Set the auth token in the Authorization header (Bearer token) - method
     fn set_auth_token(&mut self, _py: Python, token: String) -> PyResult<()> {
         self.headers
             .insert("authorization".to_string(), format!("Bearer {}", token));

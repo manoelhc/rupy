@@ -27,7 +27,7 @@ class TestUploadDecorator(unittest.TestCase):
     def setUpClass(cls):
         """Start the Rupy server in a separate thread"""
         cls.app = Rupy()
-        cls.base_url = "http://127.0.0.1:8891"
+        cls.base_url = "http://127.0.0.1:8896"
         cls.upload_dir = tempfile.mkdtemp()
 
         # Define upload routes
@@ -74,7 +74,7 @@ class TestUploadDecorator(unittest.TestCase):
 
         # Start server in a daemon thread
         cls.server_thread = threading.Thread(
-            target=cls.app.run, kwargs={"host": "127.0.0.1", "port": 8891}, daemon=True
+            target=cls.app.run, kwargs={"host": "127.0.0.1", "port": 8896}, daemon=True
         )
         cls.server_thread.start()
 
