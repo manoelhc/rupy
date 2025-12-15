@@ -10,79 +10,97 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    
+
     steps:
-    - uses: actions/checkout@v6
-    
-    - name: Set up Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: '3.12'
-    
-    - name: Install Rust toolchain
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        toolchain: stable
-    
-    - name: Run Rust tests
-      run: cargo test --release
-    
-    - name: Install maturin
-      run: pip install maturin
-    
-    - name: Build Python package
-      run: maturin build --release
-    
-    - name: Install built wheel
-      env:
-        PYTHON_VERSION: ${{ matrix.python-version }}
-      run: |
-        vpy="$(echo ${PYTHON_VERSION} | cut -d. -f1)$(echo ${PYTHON_VERSION} | cut -d. -f2)"
-        pip install target/wheels/rupy_api*cp${vpy}*.whl
-    
-    - name: Test Python import
-      run: python -c "from rupy import Rupy; print('Successfully imported Rupy')"
-    
-    - name: Run Python tests
-      run: |
-        pip install pytest requests
-        pytest tests/
+      - uses: actions/checkout@v6
+      - name: Update pyproject.toml version with the tag (removing the leading 'v')
+        run: |
+          if sed -i "s/version = \"[0-9.]*\"/version = \"$version\"/" pyproject.toml; then
+            echo "✓ Updated version to $version"
+          else
+            echo "✗ Failed to update version in pyproject.toml"
+            exit 1
+          fi
+      - name: Print updated version
+        run: grep "version = " pyproject.toml | head -1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Run Rust tests
+        run: cargo test --release
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build Python package
+        run: maturin build --release
+
+      - name: Install built wheel
+        env:
+          PYTHON_VERSION: "3.12"
+        run: |
+          vpy="$(echo ${PYTHON_VERSION} | cut -d. -f1)$(echo ${PYTHON_VERSION} | cut -d. -f2)"
+          pip install target/wheels/rupy_api*cp${vpy}*.whl
+
+      - name: Test Python import
+        run: python -c "from rupy import Rupy; print('Successfully imported Rupy')"
+
+      - name: Run Python tests
+        run: |
+          pip install pytest requests
+          pytest tests/
 
   build-wheels:
-    name: Build wheels on ${{ matrix.os }}
+    name: Build wheels on ${{ matrix.os }} - Python ${{ matrix.python-version }}
     needs: test
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-    
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
     permissions:
       contents: read
 
     steps:
-    - uses: actions/checkout@v6
-    
-    - name: Set up Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: '3.12'
-    
-    - name: Install Rust toolchain
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        toolchain: stable
-    
-    - name: Install maturin
-      run: pip install maturin
-    
-    - name: Build wheels
-      run: maturin build --release
-    
-    - name: Upload wheels
-      uses: actions/upload-artifact@v5
-      with:
-        name: wheels-${{ matrix.os }}
-        path: target/wheels/*.whl
+      - uses: actions/checkout@v6
+      - name: Update pyproject.toml version with the tag (removing the leading 'v')
+        run: |
+          if sed -i "s/version = \"[0-9.]*\"/version = \"$version\"/" pyproject.toml; then
+            echo "✓ Updated version to $version"
+          else
+            echo "✗ Failed to update version in pyproject.toml"
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build wheels
+        run: maturin build --release
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v5
+        with:
+          name: wheels-${{ matrix.os }}
+          path: target/wheels/*.whl
 
   publish:
     name: Publish to PyPI
@@ -93,40 +111,40 @@ jobs:
       url: https://pypi.org/p/rupy-api
     permissions:
       id-token: write
-    
+
     steps:
-    - uses: actions/checkout@v6
-    
-    - name: Download all wheels
-      uses: actions/download-artifact@v6
-      with:
-        pattern: wheels-*
-        path: dist
-        merge-multiple: true
-    
-    - name: Set up Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: '3.12'
-    
-    - name: Install Rust toolchain
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        toolchain: stable
-    
-    - name: Install maturin
-      run: pip install maturin
-    
-    - name: Build source distribution
-      run: maturin sdist
-    
-    - name: Copy sdist to dist
-      run: cp target/wheels/*.tar.gz dist/
-    
-    - name: List distribution files
-      run: ls -lh dist/
-    
-    - name: Publish to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        packages-dir: dist/
+      - uses: actions/checkout@v6
+
+      - name: Download all wheels
+        uses: actions/download-artifact@v6
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build source distribution
+        run: maturin sdist
+
+      - name: Copy sdist to dist
+        run: cp target/wheels/*.tar.gz dist/
+
+      - name: List distribution files
+        run: ls -lh dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
