@@ -73,6 +73,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Update pyproject.toml version with the tag (removing the leading 'v')
+        shell: bash
         run: |
           version=$(echo ${{ github.ref_name }} | cut -dv -f2)
           if sed -i "s/version = \"[0-9.]*\"/version = \"$version\"/" pyproject.toml; then
