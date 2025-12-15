@@ -203,7 +203,16 @@ async fn handler_request(
     // Now handle upload routes with middleware applied
     if let Some((ref route_info, _)) = matched_route {
         if route_info.is_upload {
-            let request_body = request_body.expect("Upload route should have request body");
+            let request_body = match request_body {
+                Some(body) => body,
+                None => {
+                    error!("Upload route missing request body");
+                    let duration = start_time.elapsed();
+                    record_metrics(&telemetry_config, &method_str, &path, 500, duration);
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
+                        .into_response();
+                }
+            };
             
             // Process middleware for upload routes
             let middleware_result_upload = {
