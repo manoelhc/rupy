@@ -129,7 +129,16 @@ impl PyRequest {
     }
 
     /// Get query string keys from the path
-    /// Returns a list of query parameter keys
+    /// 
+    /// Returns a list of query parameter keys, URL-decoded.
+    /// Handles both parameters with values (e.g., `?key=value`) and 
+    /// flag parameters without values (e.g., `?flag`).
+    /// 
+    /// # Returns
+    /// * `Vec<String>` - List of decoded query parameter keys
+    /// 
+    /// # Example
+    /// For path `/search?q=rust&page=1&debug`, returns `["q", "page", "debug"]`
     fn get_query_keys(&self, _py: Python) -> PyResult<Vec<String>> {
         if let Some(query_start) = self.path.find('?') {
             let query_string = &self.path[query_start + 1..];
@@ -157,7 +166,15 @@ impl PyRequest {
     }
 
     /// Get the path without query string
-    /// Returns the path with the query string removed
+    /// 
+    /// Returns the path component of the URL with the query string removed.
+    /// If there is no query string, returns the original path.
+    /// 
+    /// # Returns
+    /// * `String` - Path without query string
+    /// 
+    /// # Example
+    /// For path `/search?q=rust`, returns `/search`
     fn get_path_without_query(&self, _py: Python) -> PyResult<String> {
         if let Some(query_start) = self.path.find('?') {
             Ok(self.path[..query_start].to_string())
@@ -167,8 +184,21 @@ impl PyRequest {
     }
 
     /// Get a query parameter value by key
-    /// Returns None if the key doesn't exist
-    /// If the key appears multiple times, returns the last value
+    /// 
+    /// Returns the URL-decoded value of a specific query parameter.
+    /// If the key doesn't exist, returns `None`.
+    /// If the key appears multiple times, returns the last value.
+    /// Flag parameters (without values) return an empty string.
+    /// 
+    /// # Arguments
+    /// * `key` - The query parameter key to look up
+    /// 
+    /// # Returns
+    /// * `Option<String>` - The decoded parameter value, or `None` if not found
+    /// 
+    /// # Example
+    /// For path `/search?q=rust+programming&page=2`, 
+    /// `get_query_param("q")` returns `Some("rust programming")`
     fn get_query_param(&self, _py: Python, key: String) -> PyResult<Option<String>> {
         if let Some(query_start) = self.path.find('?') {
             let query_string = &self.path[query_start + 1..];
@@ -202,7 +232,17 @@ impl PyRequest {
     }
 
     /// Get all query parameters as a dictionary
-    /// If a key appears multiple times, the last value is kept
+    /// 
+    /// Returns all query parameters as a Python dictionary with URL-decoded
+    /// keys and values. If a key appears multiple times, the last value is kept.
+    /// Flag parameters (without values) have an empty string as the value.
+    /// 
+    /// # Returns
+    /// * `Py<PyDict>` - Dictionary of decoded query parameters
+    /// 
+    /// # Example
+    /// For path `/search?q=rust&page=2&debug`, returns:
+    /// `{"q": "rust", "page": "2", "debug": ""}`
     #[getter]
     fn query_params(&self, py: Python) -> PyResult<Py<PyDict>> {
         let dict = PyDict::new(py);
