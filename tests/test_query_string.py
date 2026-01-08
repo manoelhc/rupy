@@ -136,6 +136,36 @@ class TestRupyQueryString(unittest.TestCase):
         self.assertIn("page=1", response.text)
         self.assertIn("limit=10", response.text)
 
+    def test_url_encoded_params(self):
+        """Test that URL-encoded parameters are properly decoded"""
+        response = requests.get(f"{self.base_url}/query-param?name=John%20Doe&age=30")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Name: John Doe", response.text)
+        self.assertIn("Age: 30", response.text)
+
+    def test_special_chars_in_params(self):
+        """Test special characters in query parameters"""
+        response = requests.get(f"{self.base_url}/query-params?key=hello%20world&test=%26%3D%3F")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("key=hello world", response.text)
+        self.assertIn("test=&=?", response.text)
+
+    def test_param_without_value(self):
+        """Test parameter without value (flag parameter)"""
+        response = requests.get(f"{self.base_url}/query-params?flag&name=John")
+        self.assertEqual(response.status_code, 200)
+        # Flag parameters should have empty value
+        self.assertIn("flag=", response.text)
+        self.assertIn("name=John", response.text)
+
+    def test_duplicate_param_keys(self):
+        """Test that duplicate keys return the last value"""
+        response = requests.get(f"{self.base_url}/query-param?name=First&name=Last&age=25")
+        self.assertEqual(response.status_code, 200)
+        # Should use the last value for duplicate keys
+        self.assertIn("Name: Last", response.text)
+        self.assertIn("Age: 25", response.text)
+
 
 if __name__ == "__main__":
     unittest.main()

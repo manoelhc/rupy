@@ -1,6 +1,18 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::collections::HashMap;
+use percent_encoding::percent_decode_str;
+
+/// Helper function to decode query string values
+/// Handles both "+" as space and percent-encoded values
+fn decode_query_value(s: &str) -> Option<String> {
+    // First replace + with space, then percent decode
+    let with_spaces = s.replace('+', " ");
+    percent_decode_str(&with_spaces)
+        .decode_utf8()
+        .ok()
+        .map(|s| s.to_string())
+}
 
 #[pyclass]
 #[derive(Clone)]
@@ -124,13 +136,18 @@ impl PyRequest {
             let keys: Vec<String> = query_string
                 .split('&')
                 .filter_map(|param| {
-                    if let Some(eq_pos) = param.find('=') {
-                        Some(param[..eq_pos].to_string())
-                    } else if !param.is_empty() {
-                        Some(param.to_string())
-                    } else {
-                        None
+                    if param.is_empty() {
+                        return None;
                     }
+                    
+                    let key = if let Some(eq_pos) = param.find('=') {
+                        &param[..eq_pos]
+                    } else {
+                        param
+                    };
+                    
+                    // URL decode the key
+                    decode_query_value(key)
                 })
                 .collect();
             Ok(keys)
@@ -151,33 +168,67 @@ impl PyRequest {
 
     /// Get a query parameter value by key
     /// Returns None if the key doesn't exist
+    /// If the key appears multiple times, returns the last value
     fn get_query_param(&self, _py: Python, key: String) -> PyResult<Option<String>> {
         if let Some(query_start) = self.path.find('?') {
             let query_string = &self.path[query_start + 1..];
+            let mut result = None;
+            
             for param in query_string.split('&') {
                 if let Some(eq_pos) = param.find('=') {
                     let param_key = &param[..eq_pos];
-                    if param_key == key {
-                        let value = &param[eq_pos + 1..];
-                        return Ok(Some(value.to_string()));
+                    
+                    // URL decode the key for comparison
+                    if let Some(decoded_key) = decode_query_value(param_key) {
+                        if decoded_key == key {
+                            let value = &param[eq_pos + 1..];
+                            // URL decode the value
+                            result = decode_query_value(value);
+                        }
+                    }
+                } else if !param.is_empty() {
+                    // Handle parameters without values (e.g., ?flag)
+                    if let Some(decoded_key) = decode_query_value(param) {
+                        if decoded_key == key {
+                            result = Some(String::new());
+                        }
                     }
                 }
             }
+            Ok(result)
+        } else {
+            Ok(None)
         }
-        Ok(None)
     }
 
     /// Get all query parameters as a dictionary
+    /// If a key appears multiple times, the last value is kept
     #[getter]
     fn query_params(&self, py: Python) -> PyResult<Py<PyDict>> {
         let dict = PyDict::new(py);
         if let Some(query_start) = self.path.find('?') {
             let query_string = &self.path[query_start + 1..];
             for param in query_string.split('&') {
+                if param.is_empty() {
+                    continue;
+                }
+                
                 if let Some(eq_pos) = param.find('=') {
                     let key = &param[..eq_pos];
                     let value = &param[eq_pos + 1..];
-                    dict.set_item(key, value)?;
+                    
+                    // URL decode both key and value
+                    if let (Some(decoded_key), Some(decoded_value)) = (
+                        decode_query_value(key),
+                        decode_query_value(value),
+                    ) {
+                        dict.set_item(&decoded_key, &decoded_value)?;
+                    }
+                } else {
+                    // Handle parameters without values (e.g., ?flag)
+                    if let Some(decoded_key) = decode_query_value(param) {
+                        dict.set_item(&decoded_key, "")?;
+                    }
                 }
             }
         }
