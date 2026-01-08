@@ -1,14 +1,18 @@
 """
 Tests for template rendering functionality.
 """
-import unittest
+from __future__ import annotations
+
+import os
+import shutil
+import tempfile
 import threading
 import time
+import unittest
+
 import requests
-import os
-import tempfile
-import shutil
-from rupy import Rupy, Request
+from rupy import Request
+from rupy import Rupy
 
 
 class TestTemplateDecorator(unittest.TestCase):
@@ -23,46 +27,48 @@ class TestTemplateDecorator(unittest.TestCase):
 
         # Create a temporary directory for templates
         cls.temp_dir = tempfile.mkdtemp()
-        
+
         # Create test templates
-        with open(os.path.join(cls.temp_dir, "test.tpl"), "w") as f:
-            f.write("<html><body><h1>{{title}}</h1><p>{{message}}</p></body></html>")
-        
-        with open(os.path.join(cls.temp_dir, "user.tpl"), "w") as f:
-            f.write("<html><body><h1>User: {{username}}</h1><p>ID: {{user_id}}</p></body></html>")
-        
-        with open(os.path.join(cls.temp_dir, "json_test.tpl"), "w") as f:
+        with open(os.path.join(cls.temp_dir, 'test.tpl'), 'w') as f:
+            f.write(
+                '<html><body><h1>{{title}}</h1><p>{{message}}</p></body></html>')
+
+        with open(os.path.join(cls.temp_dir, 'user.tpl'), 'w') as f:
+            f.write(
+                '<html><body><h1>User: {{username}}</h1><p>ID: {{user_id}}</p></body></html>')
+
+        with open(os.path.join(cls.temp_dir, 'json_test.tpl'), 'w') as f:
             f.write('{"title": "{{title}}", "count": {{count}}}')
 
         # Set custom template directory
         cls.app.set_template_directory(cls.temp_dir)
 
         # Register template routes
-        @cls.app.template("/test", template="test.tpl")
+        @cls.app.template('/test', template='test.tpl')
         def test_page(request: Request) -> dict:
             return {
-                "title": "Test Page",
-                "message": "Hello from template!"
+                'title': 'Test Page',
+                'message': 'Hello from template!',
             }
 
-        @cls.app.template("/user/<username>", template="user.tpl")
+        @cls.app.template('/user/<username>', template='user.tpl')
         def user_page(request: Request, username: str) -> dict:
             return {
-                "username": username,
-                "user_id": 123
+                'username': username,
+                'user_id': 123,
             }
 
-        @cls.app.template("/json", template="json_test.tpl", content_type="application/json")
+        @cls.app.template('/json', template='json_test.tpl', content_type='application/json')
         def json_page(request: Request) -> dict:
             return {
-                "title": "JSON Response",
-                "count": 42
+                'title': 'JSON Response',
+                'count': 42,
             }
 
         # Start server in a background thread
         cls.server_thread = threading.Thread(
-            target=lambda: cls.app.run(host="127.0.0.1", port=cls.port),
-            daemon=True
+            target=lambda: cls.app.run(host='127.0.0.1', port=cls.port),
+            daemon=True,
         )
         cls.server_thread.start()
         time.sleep(1)  # Wait for server to start
@@ -76,25 +82,26 @@ class TestTemplateDecorator(unittest.TestCase):
         """Test that basic template rendering works."""
         response = requests.get(f"{self.base_url}/test")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Test Page", response.text)
-        self.assertIn("Hello from template!", response.text)
-        self.assertIn("<html>", response.text)
-        self.assertEqual(response.headers.get("Content-Type"), "text/html")
+        self.assertIn('Test Page', response.text)
+        self.assertIn('Hello from template!', response.text)
+        self.assertIn('<html>', response.text)
+        self.assertEqual(response.headers.get('Content-Type'), 'text/html')
 
     def test_template_with_dynamic_param(self):
         """Test template rendering with dynamic route parameters."""
         response = requests.get(f"{self.base_url}/user/alice")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("User: alice", response.text)
-        self.assertIn("ID: 123", response.text)
+        self.assertIn('User: alice', response.text)
+        self.assertIn('ID: 123', response.text)
 
     def test_template_custom_content_type(self):
         """Test template with custom content type."""
         response = requests.get(f"{self.base_url}/json")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers.get("Content-Type"), "application/json")
-        self.assertIn("JSON Response", response.text)
-        self.assertIn("42", response.text)
+        self.assertEqual(response.headers.get(
+            'Content-Type'), 'application/json')
+        self.assertIn('JSON Response', response.text)
+        self.assertIn('42', response.text)
 
 
 class TestTemplateConfiguration(unittest.TestCase):
@@ -103,7 +110,7 @@ class TestTemplateConfiguration(unittest.TestCase):
     def test_set_template_directory(self):
         """Test setting custom template directory."""
         app = Rupy()
-        custom_dir = "/custom/template/dir"
+        custom_dir = '/custom/template/dir'
         app.set_template_directory(custom_dir)
         # Verify it was set (we can't easily check this without calling the route,
         # but at least ensure the method doesn't raise an error)
@@ -114,7 +121,7 @@ class TestTemplateConfiguration(unittest.TestCase):
         app = Rupy()
         # Default should be "./template"
         default_dir = app.get_template_directory()
-        self.assertEqual(default_dir, "./template")
+        self.assertEqual(default_dir, './template')
 
 
 class TestTemplateErrors(unittest.TestCase):
@@ -132,21 +139,21 @@ class TestTemplateErrors(unittest.TestCase):
         cls.app.set_template_directory(cls.temp_dir)
 
         # Create a test template
-        with open(os.path.join(cls.temp_dir, "valid.tpl"), "w") as f:
-            f.write("<html><body>{{text}}</body></html>")
+        with open(os.path.join(cls.temp_dir, 'valid.tpl'), 'w') as f:
+            f.write('<html><body>{{text}}</body></html>')
 
-        @cls.app.template("/missing", template="nonexistent.tpl")
+        @cls.app.template('/missing', template='nonexistent.tpl')
         def missing_template(request: Request) -> dict:
-            return {"text": "This should fail"}
+            return {'text': 'This should fail'}
 
-        @cls.app.template("/valid", template="valid.tpl")
+        @cls.app.template('/valid', template='valid.tpl')
         def valid_template(request: Request) -> dict:
-            return {"text": "Success"}
+            return {'text': 'Success'}
 
         # Start server in a background thread
         cls.server_thread = threading.Thread(
-            target=lambda: cls.app.run(host="127.0.0.1", port=cls.port),
-            daemon=True
+            target=lambda: cls.app.run(host='127.0.0.1', port=cls.port),
+            daemon=True,
         )
         cls.server_thread.start()
         time.sleep(1)
@@ -160,14 +167,14 @@ class TestTemplateErrors(unittest.TestCase):
         """Test error handling when template file is missing."""
         response = requests.get(f"{self.base_url}/missing")
         self.assertEqual(response.status_code, 500)
-        self.assertIn("Template rendering error", response.text)
+        self.assertIn('Template rendering error', response.text)
 
     def test_valid_template(self):
         """Test that valid template still works."""
         response = requests.get(f"{self.base_url}/valid")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Success", response.text)
+        self.assertIn('Success', response.text)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()

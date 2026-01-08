@@ -251,7 +251,7 @@ def send_report(request: Request) -> str:
         "title": "Monthly Report",
         "data": "Sales: $10,000"
     })
-    
+
     # Could send via email, save to file, etc.
     return rendered
 ```

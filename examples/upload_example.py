@@ -5,15 +5,20 @@ Example demonstrating file upload functionality in Rupy.
 This example shows how to use the @app.upload decorator to handle file uploads
 with various options like MIME type filtering and size limits.
 """
+from __future__ import annotations
 
-from rupy import Rupy, Request, Response, UploadFile
-from typing import List
 import json
+from typing import List
+
+from rupy import Request
+from rupy import Response
+from rupy import Rupy
+from rupy import UploadFile
 
 app = Rupy()
 
 
-@app.get("/")
+@app.get('/')
 def index(request: Request) -> Response:
     """Serve a simple HTML form for file upload"""
     html = """
@@ -31,7 +36,7 @@ def index(request: Request) -> Response:
     </head>
     <body>
         <h1>Rupy File Upload Example</h1>
-        
+
         <div class="upload-form">
             <h2>Upload Any File</h2>
             <form action="/upload" method="post" enctype="multipart/form-data">
@@ -40,7 +45,7 @@ def index(request: Request) -> Response:
                 <button type="submit">Upload</button>
             </form>
         </div>
-        
+
         <div class="upload-form">
             <h2>Upload Images Only</h2>
             <form action="/upload-images" method="post" enctype="multipart/form-data">
@@ -49,7 +54,7 @@ def index(request: Request) -> Response:
                 <button type="submit">Upload Images</button>
             </form>
         </div>
-        
+
         <div class="upload-form">
             <h2>Upload with Size Limit (Max 5MB)</h2>
             <form action="/upload-limited" method="post" enctype="multipart/form-data">
@@ -62,139 +67,140 @@ def index(request: Request) -> Response:
     </html>
     """
     resp = Response(html)
-    resp.set_header("Content-Type", "text/html")
+    resp.set_header('Content-Type', 'text/html')
     return resp
 
 
-@app.upload("/upload", upload_dir="/tmp/rupy-uploads")
-def upload_any_file(request: Request, files: List[UploadFile]) -> Response:
+@app.upload('/upload', upload_dir='/tmp/rupy-uploads')
+def upload_any_file(request: Request, files: list[UploadFile]) -> Response:
     """
     Handle uploads of any file type.
     Files are streamed to disk to avoid memory overflow.
     """
     result = {
-        "status": "success",
-        "files": []
+        'status': 'success',
+        'files': [],
     }
-    
+
     for file in files:
         file_info = {
-            "filename": file.filename,
-            "size": file.size,
-            "content_type": file.content_type,
-            "path": file.path
+            'filename': file.filename,
+            'size': file.size,
+            'content_type': file.content_type,
+            'path': file.path,
         }
-        result["files"].append(file_info)
+        result['files'].append(file_info)
         print(f"Uploaded: {file.filename} ({file.size} bytes) -> {file.path}")
-    
+
     resp = Response(json.dumps(result, indent=2))
-    resp.set_header("Content-Type", "application/json")
+    resp.set_header('Content-Type', 'application/json')
     return resp
 
 
 @app.upload(
-    "/upload-images",
-    accepted_mime_types=["image/*"],  # Only accept images
-    upload_dir="/tmp/rupy-uploads"
+    '/upload-images',
+    accepted_mime_types=['image/*'],  # Only accept images
+    upload_dir='/tmp/rupy-uploads',
 )
-def upload_images(request: Request, files: List[UploadFile]) -> Response:
+def upload_images(request: Request, files: list[UploadFile]) -> Response:
     """
     Handle uploads of image files only.
     Uses wildcard matching for MIME types (image/*).
     """
     result = {
-        "status": "success",
-        "files": []
+        'status': 'success',
+        'files': [],
     }
-    
+
     for file in files:
         file_info = {
-            "filename": file.filename,
-            "size": file.size,
-            "content_type": file.content_type,
-            "path": file.path
+            'filename': file.filename,
+            'size': file.size,
+            'content_type': file.content_type,
+            'path': file.path,
         }
-        result["files"].append(file_info)
+        result['files'].append(file_info)
         print(f"Image uploaded: {file.filename} ({file.size} bytes)")
-    
+
     resp = Response(json.dumps(result, indent=2))
-    resp.set_header("Content-Type", "application/json")
+    resp.set_header('Content-Type', 'application/json')
     return resp
 
 
 @app.upload(
-    "/upload-limited",
+    '/upload-limited',
     max_size=5 * 1024 * 1024,  # 5MB limit
-    upload_dir="/tmp/rupy-uploads"
+    upload_dir='/tmp/rupy-uploads',
 )
-def upload_with_limit(request: Request, files: List[UploadFile]) -> Response:
+def upload_with_limit(request: Request, files: list[UploadFile]) -> Response:
     """
     Handle uploads with a 5MB size limit per file.
     Files exceeding the limit will be rejected.
     """
     result = {
-        "status": "success",
-        "files": []
+        'status': 'success',
+        'files': [],
     }
-    
+
     for file in files:
         file_info = {
-            "filename": file.filename,
-            "size": file.size,
-            "content_type": file.content_type,
-            "path": file.path
+            'filename': file.filename,
+            'size': file.size,
+            'content_type': file.content_type,
+            'path': file.path,
         }
-        result["files"].append(file_info)
+        result['files'].append(file_info)
         print(f"Limited upload: {file.filename} ({file.size} bytes)")
-    
+
     resp = Response(json.dumps(result, indent=2))
-    resp.set_header("Content-Type", "application/json")
+    resp.set_header('Content-Type', 'application/json')
     return resp
 
 
 @app.upload(
-    "/upload-documents",
-    accepted_mime_types=["application/pdf", "application/msword", "text/plain"],
+    '/upload-documents',
+    accepted_mime_types=['application/pdf',
+                         'application/msword', 'text/plain'],
     max_size=10 * 1024 * 1024,  # 10MB limit
-    upload_dir="/tmp/rupy-uploads"
+    upload_dir='/tmp/rupy-uploads',
 )
-def upload_documents(request: Request, files: List[UploadFile]) -> Response:
+def upload_documents(request: Request, files: list[UploadFile]) -> Response:
     """
     Handle uploads of specific document types with size limit.
     Only accepts PDF, Word documents, and plain text files.
     """
     result = {
-        "status": "success",
-        "files": []
+        'status': 'success',
+        'files': [],
     }
-    
+
     for file in files:
         file_info = {
-            "filename": file.filename,
-            "size": file.size,
-            "content_type": file.content_type,
-            "path": file.path
+            'filename': file.filename,
+            'size': file.size,
+            'content_type': file.content_type,
+            'path': file.path,
         }
-        result["files"].append(file_info)
+        result['files'].append(file_info)
         print(f"Document uploaded: {file.filename}")
-    
+
     resp = Response(json.dumps(result, indent=2))
-    resp.set_header("Content-Type", "application/json")
+    resp.set_header('Content-Type', 'application/json')
     return resp
 
 
-if __name__ == "__main__":
-    print("Starting Rupy file upload example server...")
-    print("\nEndpoints:")
-    print("  - GET  /                     - Upload form")
-    print("  - POST /upload               - Upload any file")
-    print("  - POST /upload-images        - Upload images only")
-    print("  - POST /upload-limited       - Upload with 5MB limit")
-    print("  - POST /upload-documents     - Upload documents with 10MB limit")
-    print("\nTry uploading files using:")
+if __name__ == '__main__':
+    print('Starting Rupy file upload example server...')
+    print('\nEndpoints:')
+    print('  - GET  /                     - Upload form')
+    print('  - POST /upload               - Upload any file')
+    print('  - POST /upload-images        - Upload images only')
+    print('  - POST /upload-limited       - Upload with 5MB limit')
+    print('  - POST /upload-documents     - Upload documents with 10MB limit')
+    print('\nTry uploading files using:')
     print("  curl -F 'file=@myfile.txt' http://127.0.0.1:8000/upload")
     print("  curl -F 'file=@image.png' http://127.0.0.1:8000/upload-images")
-    print("\nOr visit http://127.0.0.1:8000/ in your browser")
+    print('\nOr visit http://127.0.0.1:8000/ in your browser')
     print()
-    
-    app.run(host="127.0.0.1", port=8000)
+
+    app.run(host='127.0.0.1', port=8000)

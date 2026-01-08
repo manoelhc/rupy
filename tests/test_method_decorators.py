@@ -4,12 +4,16 @@ Unit tests for Rupy method-specific decorators.
 
 Tests all HTTP method decorators (get, post, put, patch, delete, head, options).
 """
+from __future__ import annotations
 
-import unittest
 import threading
 import time
+import unittest
+
 import requests
-from rupy import Rupy, Request, Response
+from rupy import Request
+from rupy import Response
+from rupy import Rupy
 
 
 class TestMethodDecorators(unittest.TestCase):
@@ -19,49 +23,49 @@ class TestMethodDecorators(unittest.TestCase):
     def setUpClass(cls):
         """Start the Rupy server in a separate thread"""
         cls.app = Rupy()
-        cls.base_url = "http://127.0.0.1:8890"
+        cls.base_url = 'http://127.0.0.1:8890'
 
         # Define routes using method-specific decorators
-        @cls.app.get("/get-route")
+        @cls.app.get('/get-route')
         def get_handler(request: Request) -> Response:
-            return Response("GET response")
+            return Response('GET response')
 
-        @cls.app.post("/post-route")
+        @cls.app.post('/post-route')
         def post_handler(request: Request) -> Response:
-            return Response("POST response")
+            return Response('POST response')
 
-        @cls.app.put("/put-route")
+        @cls.app.put('/put-route')
         def put_handler(request: Request) -> Response:
-            return Response("PUT response")
+            return Response('PUT response')
 
-        @cls.app.patch("/patch-route")
+        @cls.app.patch('/patch-route')
         def patch_handler(request: Request) -> Response:
-            return Response("PATCH response")
+            return Response('PATCH response')
 
-        @cls.app.delete("/delete-route")
+        @cls.app.delete('/delete-route')
         def delete_handler(request: Request) -> Response:
-            return Response("DELETE response")
+            return Response('DELETE response')
 
-        @cls.app.head("/head-route")
+        @cls.app.head('/head-route')
         def head_handler(request: Request) -> Response:
-            return Response("HEAD response")
+            return Response('HEAD response')
 
-        @cls.app.options("/options-route")
+        @cls.app.options('/options-route')
         def options_handler(request: Request) -> Response:
-            return Response("OPTIONS response")
+            return Response('OPTIONS response')
 
         # Test with dynamic parameters
-        @cls.app.get("/user/<username>")
+        @cls.app.get('/user/<username>')
         def user_handler(request: Request, username: str) -> Response:
             return Response(f"User: {username}")
 
-        @cls.app.delete("/resource/<id>")
+        @cls.app.delete('/resource/<id>')
         def resource_handler(request: Request, id: str) -> Response:
             return Response(f"Deleted: {id}")
 
         # Start server in a daemon thread
         cls.server_thread = threading.Thread(
-            target=cls.app.run, kwargs={"host": "127.0.0.1", "port": 8890}, daemon=True
+            target=cls.app.run, kwargs={'host': '127.0.0.1', 'port': 8890}, daemon=True,
         )
         cls.server_thread.start()
 
@@ -72,56 +76,56 @@ class TestMethodDecorators(unittest.TestCase):
         """Test @app.get decorator"""
         response = requests.get(f"{self.base_url}/get-route")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.text, "GET response")
+        self.assertEqual(response.text, 'GET response')
 
     def test_post_decorator(self):
         """Test @app.post decorator"""
         response = requests.post(f"{self.base_url}/post-route")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.text, "POST response")
+        self.assertEqual(response.text, 'POST response')
 
     def test_put_decorator(self):
         """Test @app.put decorator"""
         response = requests.put(f"{self.base_url}/put-route")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.text, "PUT response")
+        self.assertEqual(response.text, 'PUT response')
 
     def test_patch_decorator(self):
         """Test @app.patch decorator"""
         response = requests.patch(f"{self.base_url}/patch-route")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.text, "PATCH response")
+        self.assertEqual(response.text, 'PATCH response')
 
     def test_delete_decorator(self):
         """Test @app.delete decorator"""
         response = requests.delete(f"{self.base_url}/delete-route")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.text, "DELETE response")
+        self.assertEqual(response.text, 'DELETE response')
 
     def test_head_decorator(self):
         """Test @app.head decorator"""
         response = requests.head(f"{self.base_url}/head-route")
         self.assertEqual(response.status_code, 200)
         # HEAD requests should not have a body
-        self.assertEqual(response.text, "")
+        self.assertEqual(response.text, '')
 
     def test_options_decorator(self):
         """Test @app.options decorator"""
         response = requests.options(f"{self.base_url}/options-route")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.text, "OPTIONS response")
+        self.assertEqual(response.text, 'OPTIONS response')
 
     def test_get_with_dynamic_param(self):
         """Test @app.get decorator with dynamic parameters"""
         response = requests.get(f"{self.base_url}/user/john")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.text, "User: john")
+        self.assertEqual(response.text, 'User: john')
 
     def test_delete_with_dynamic_param(self):
         """Test @app.delete decorator with dynamic parameters"""
         response = requests.delete(f"{self.base_url}/resource/123")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.text, "Deleted: 123")
+        self.assertEqual(response.text, 'Deleted: 123')
 
     def test_wrong_method_on_get_decorator(self):
         """Test that using wrong method on @app.get returns 404"""
@@ -141,9 +145,9 @@ class TestDecoratorRegistration(unittest.TestCase):
         """Test @app.get decorator registration"""
         app = Rupy()
 
-        @app.get("/test")
+        @app.get('/test')
         def handler(request: Request) -> Response:
-            return Response("test")
+            return Response('test')
 
         # Just verify the decorator works without errors
         self.assertTrue(True)
@@ -152,9 +156,9 @@ class TestDecoratorRegistration(unittest.TestCase):
         """Test @app.post decorator registration"""
         app = Rupy()
 
-        @app.post("/test")
+        @app.post('/test')
         def handler(request: Request) -> Response:
-            return Response("test")
+            return Response('test')
 
         self.assertTrue(True)
 
@@ -162,9 +166,9 @@ class TestDecoratorRegistration(unittest.TestCase):
         """Test @app.put decorator registration"""
         app = Rupy()
 
-        @app.put("/test")
+        @app.put('/test')
         def handler(request: Request) -> Response:
-            return Response("test")
+            return Response('test')
 
         self.assertTrue(True)
 
@@ -172,9 +176,9 @@ class TestDecoratorRegistration(unittest.TestCase):
         """Test @app.patch decorator registration"""
         app = Rupy()
 
-        @app.patch("/test")
+        @app.patch('/test')
         def handler(request: Request) -> Response:
-            return Response("test")
+            return Response('test')
 
         self.assertTrue(True)
 
@@ -182,9 +186,9 @@ class TestDecoratorRegistration(unittest.TestCase):
         """Test @app.delete decorator registration"""
         app = Rupy()
 
-        @app.delete("/test")
+        @app.delete('/test')
         def handler(request: Request) -> Response:
-            return Response("test")
+            return Response('test')
 
         self.assertTrue(True)
 
@@ -192,9 +196,9 @@ class TestDecoratorRegistration(unittest.TestCase):
         """Test @app.head decorator registration"""
         app = Rupy()
 
-        @app.head("/test")
+        @app.head('/test')
         def handler(request: Request) -> Response:
-            return Response("test")
+            return Response('test')
 
         self.assertTrue(True)
 
@@ -202,9 +206,9 @@ class TestDecoratorRegistration(unittest.TestCase):
         """Test @app.options decorator registration"""
         app = Rupy()
 
-        @app.options("/test")
+        @app.options('/test')
         def handler(request: Request) -> Response:
-            return Response("test")
+            return Response('test')
 
         self.assertTrue(True)
 
@@ -212,21 +216,21 @@ class TestDecoratorRegistration(unittest.TestCase):
         """Test registering multiple routes with different method decorators"""
         app = Rupy()
 
-        @app.get("/resource")
+        @app.get('/resource')
         def get_resource(request: Request) -> Response:
-            return Response("GET")
+            return Response('GET')
 
-        @app.post("/resource")
+        @app.post('/resource')
         def post_resource(request: Request) -> Response:
-            return Response("POST")
+            return Response('POST')
 
-        @app.delete("/resource/<id>")
+        @app.delete('/resource/<id>')
         def delete_resource(request: Request, id: str) -> Response:
             return Response(f"DELETE {id}")
 
         self.assertTrue(True)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     # Run with verbose output
     unittest.main(verbosity=2)

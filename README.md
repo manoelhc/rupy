@@ -62,10 +62,10 @@ Or for a specific branch, tag, or commit:
 dependencies = [
     # Using a specific branch
     "rupy-api @ git+https://github.com/manoelhc/rupy.git@main",
-    
+
     # Using a specific tag
     "rupy-api @ git+https://github.com/manoelhc/rupy.git@v0.0.1",
-    
+
     # Using a specific commit
     "rupy-api @ git+https://github.com/manoelhc/rupy.git@abc123",
 ]
@@ -248,11 +248,11 @@ def index(request: Request) -> Response:
 @app.middleware
 def cors_middleware(request: Request):
     print(f"[CORS] Processing {request.method} {request.path}")
-    
+
     # Handle preflight OPTIONS requests
     if request.method == "OPTIONS":
         return Response("", status=204)
-    
+
     # Continue to next middleware or route handler
     return request
 ```
@@ -265,7 +265,7 @@ def jwt_auth_middleware(request: Request):
     # Skip auth for public routes
     if request.path in ["/", "/login", "/public"]:
         return request
-    
+
     # Check for protected routes
     if request.path.startswith("/protected"):
         # In real implementation, validate JWT token from headers
@@ -273,7 +273,7 @@ def jwt_auth_middleware(request: Request):
             '{"error": "Unauthorized - Invalid or missing JWT token"}',
             status=401
         )
-    
+
     return request
 ```
 
@@ -305,7 +305,7 @@ app = Rupy()
 @app.route("/login", methods=["POST"])
 def login(request: Request) -> Response:
     resp = Response('{"message": "Login successful"}')
-    
+
     # Set a cookie with options
     resp.set_cookie(
         "session_id",
@@ -315,26 +315,26 @@ def login(request: Request) -> Response:
         secure=True,         # Only sent over HTTPS
         same_site="Lax"      # CSRF protection
     )
-    
+
     return resp
 
 @app.route("/profile", methods=["GET"])
 def profile(request: Request) -> Response:
     # Read a cookie
     session_id = request.get_cookie("session_id")
-    
+
     if not session_id:
         return Response("Not logged in", status=401)
-    
+
     return Response(f"Session: {session_id}")
 
 @app.route("/logout", methods=["POST"])
 def logout(request: Request) -> Response:
     resp = Response('{"message": "Logged out"}')
-    
+
     # Delete a cookie
     resp.delete_cookie("session_id")
-    
+
     return resp
 ```
 
@@ -345,10 +345,10 @@ def logout(request: Request) -> Response:
 def protected(request: Request) -> Response:
     # Get Bearer token from Authorization header
     token = request.auth_token
-    
+
     if not token:
         return Response("Unauthorized", status=401)
-    
+
     # Validate token (implement your own validation logic)
     if token == "valid-token":
         return Response("Access granted")

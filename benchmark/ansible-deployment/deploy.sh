@@ -45,7 +45,7 @@ function check_inventory() {
         print_error "inventory.yml not found"
         exit 1
     fi
-    
+
     # Check if inventory has been customized
     if grep -q "192.168.1.10" inventory.yml; then
         print_error "Please update inventory.yml with your actual server IPs"
@@ -69,19 +69,19 @@ function test_connectivity() {
 
 function deploy_all() {
     print_header "Deploying Benchmark Infrastructure"
-    
+
     print_info "Step 1/4: Common setup..."
     ansible-playbook playbooks/common.yml || exit 1
-    
+
     print_info "Step 2/4: Database setup..."
     ansible-playbook playbooks/database.yml || exit 1
-    
+
     print_info "Step 3/4: Application servers setup..."
     ansible-playbook playbooks/apps.yml || exit 1
-    
+
     print_info "Step 4/4: Locust setup..."
     ansible-playbook playbooks/locust.yml || exit 1
-    
+
     print_success "Deployment complete!"
 }
 
@@ -110,12 +110,12 @@ function restart_services() {
 
 function show_info() {
     print_header "Deployment Information"
-    
+
     # Get IPs from inventory
     LOCUST_IP=$(grep -A1 "locust-server:" inventory.yml | grep ansible_host | awk '{print $2}')
     APP_IP=$(grep -A1 "app-server:" inventory.yml | grep ansible_host | awk '{print $2}')
     DB_IP=$(grep -A1 "db-server:" inventory.yml | grep ansible_host | awk '{print $2}')
-    
+
     echo ""
     echo "Locust Web UI:    http://${LOCUST_IP}:8089"
     echo ""

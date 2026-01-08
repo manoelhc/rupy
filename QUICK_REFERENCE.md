@@ -59,10 +59,10 @@ def add_headers_middleware(request: Request):
     # Add custom headers
     request.set_header("X-Request-ID", "req-123")
     request.set_header("X-Custom", "value")
-    
+
     # Modify existing headers
     request.set_header("User-Agent", "Modified-Agent")
-    
+
     # These headers will be available in route handlers
     return request
 

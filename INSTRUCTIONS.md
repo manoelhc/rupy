@@ -1,4 +1,4 @@
-Rupy is a web framework for building web applications in Python. 
+Rupy is a web framework for building web applications in Python.
 However It users Rust (Axum + pyo3) behind the scenes to provide high performance.
 
 # Ergonomics

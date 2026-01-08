@@ -10,7 +10,7 @@ This directory contains benchmarking tools and load tests for comparing Rupy's p
 
 This benchmark compares multiple Python web frameworks for typical database operations:
 - INSERT operations
-- UPDATE operations  
+- UPDATE operations
 - SELECT operations
 - UPSERT operations
 
