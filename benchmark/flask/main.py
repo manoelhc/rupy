@@ -24,6 +24,5 @@ def hello_world():
 # This block ensures the development server runs only when the script is executed directly.
 if __name__ == '__main__':
     # Run the Flask development server.
-    # debug=True enables debug mode, which provides detailed error messages
-    # and automatically reloads the server on code changes.
-    app.run(debug=True)
+    # Debug mode is not explicitly enabled here to avoid security risks in production.
+    app.run()
