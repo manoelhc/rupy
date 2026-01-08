@@ -116,7 +116,11 @@ async fn handler_request(
     template_config: Arc<Mutex<crate::template::TemplateConfig>>,
 ) -> axum::response::Response {
     let start_time = Instant::now();
-    let path = uri.path().to_string();
+    let path = match uri.path_and_query() {
+        Some(paq) => paq.as_str().to_string(),
+        None => uri.path().to_string(),
+    };
+    let path_without_query = uri.path().to_string();
     let method_str = method.as_str().to_string();
 
     let headers_map = request.headers().clone();
@@ -158,7 +162,7 @@ async fn handler_request(
         let mut matched: Option<(RouteInfo, Vec<String>)> = None;
 
         for route_info in routes_lock.iter() {
-            if let Some(param_values) = match_route(&path, &route_info.path) {
+            if let Some(param_values) = match_route(&path_without_query, &route_info.path) {
                 if route_info.methods.iter().any(|m| m == &method_str) {
                     matched = Some((route_info.clone(), param_values));
                     break;

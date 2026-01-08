@@ -115,6 +115,74 @@ impl PyRequest {
             .insert("authorization".to_string(), format!("Bearer {}", token));
         Ok(())
     }
+
+    /// Get query string keys from the path
+    /// Returns a list of query parameter keys
+    fn get_query_keys(&self, _py: Python) -> PyResult<Vec<String>> {
+        if let Some(query_start) = self.path.find('?') {
+            let query_string = &self.path[query_start + 1..];
+            let keys: Vec<String> = query_string
+                .split('&')
+                .filter_map(|param| {
+                    if let Some(eq_pos) = param.find('=') {
+                        Some(param[..eq_pos].to_string())
+                    } else if !param.is_empty() {
+                        Some(param.to_string())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            Ok(keys)
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    /// Get the path without query string
+    /// Returns the path with the query string removed
+    fn get_path_without_query(&self, _py: Python) -> PyResult<String> {
+        if let Some(query_start) = self.path.find('?') {
+            Ok(self.path[..query_start].to_string())
+        } else {
+            Ok(self.path.clone())
+        }
+    }
+
+    /// Get a query parameter value by key
+    /// Returns None if the key doesn't exist
+    fn get_query_param(&self, _py: Python, key: String) -> PyResult<Option<String>> {
+        if let Some(query_start) = self.path.find('?') {
+            let query_string = &self.path[query_start + 1..];
+            for param in query_string.split('&') {
+                if let Some(eq_pos) = param.find('=') {
+                    let param_key = &param[..eq_pos];
+                    if param_key == key {
+                        let value = &param[eq_pos + 1..];
+                        return Ok(Some(value.to_string()));
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    /// Get all query parameters as a dictionary
+    #[getter]
+    fn query_params(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let dict = PyDict::new(py);
+        if let Some(query_start) = self.path.find('?') {
+            let query_string = &self.path[query_start + 1..];
+            for param in query_string.split('&') {
+                if let Some(eq_pos) = param.find('=') {
+                    let key = &param[..eq_pos];
+                    let value = &param[eq_pos + 1..];
+                    dict.set_item(key, value)?;
+                }
+            }
+        }
+        Ok(dict.into())
+    }
 }
 
 pub fn parse_cookies(cookie_header: &str) -> HashMap<String, String> {
