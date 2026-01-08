@@ -502,7 +502,7 @@ def jwt_auth_middleware(request: Request):
     # Skip auth for public routes
     if request.path in ["/", "/login", "/public"]:
         return request
-    
+
     # Check for protected routes
     if request.path.startswith("/protected"):
         # Validate JWT token from headers
@@ -587,7 +587,7 @@ python app.py</code></pre>
                             <pre class="text-sm text-gray-300"><code>@app.route("/login", methods=["POST"])
 def login(request: Request) -> Response:
     resp = Response('{"message": "Login successful"}')
-    
+
     # Set a cookie with options
     resp.set_cookie(
         "session_id",
@@ -617,10 +617,10 @@ def profile(request: Request) -> Response:
 def protected(request: Request) -> Response:
     # Get Bearer token from Authorization header
     token = request.auth_token
-    
+
     if not token:
         return Response("Unauthorized", status=401)
-    
+
     if token == "valid-token":
         return Response("Access granted")
     else:
@@ -776,12 +776,12 @@ def index(request: Request) -> Response:
     # Access headers like a dictionary
     user_agent = request.headers.get('user-agent', 'Unknown')
     host = request.headers.get('host', 'Unknown')
-    
+
     # Set custom response headers
     resp = Response(f"User-Agent: {user_agent}")
     resp.set_header('X-Custom-Header', 'MyValue')
     resp.set_header('X-Powered-By', 'Rupy')
-    
+
     return resp</code></pre>
                     </div>
                 </div>

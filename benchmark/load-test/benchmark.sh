@@ -68,10 +68,10 @@ EOF
 function start_services() {
     print_header "Starting Services"
     docker-compose up -d --build
-    
+
     print_info "Waiting for services to be ready..."
     sleep 10
-    
+
     echo ""
     echo "Services started:"
     echo "  - PostgreSQL: localhost:5432"
@@ -101,12 +101,12 @@ function show_logs() {
 
 function run_tests() {
     print_header "Running API Compatibility Tests"
-    
+
     if ! command -v python3 &> /dev/null; then
         print_error "python3 is required but not installed"
         exit 1
     fi
-    
+
     # Check if requests is installed, install if needed
     if ! python3 -c "import requests" 2>/dev/null; then
         print_info "Installing requests package..."
@@ -115,7 +115,7 @@ function run_tests() {
             exit 1
         }
     fi
-    
+
     python3 test_apis.py
 }
 
@@ -123,20 +123,20 @@ function bench_api() {
     local api_name=$1
     local host=$2
     local port=$3
-    
+
     print_header "Running Load Test: $api_name"
-    
+
     if ! command -v locust &> /dev/null; then
         print_error "locust is not installed"
         echo "Install it with: pip install locust"
         exit 1
     fi
-    
+
     local output_file="${api_name}-benchmark-$(date +%Y%m%d-%H%M%S)"
-    
+
     print_info "Running 60-second test with 100 users..."
     print_info "Results will be saved to: ${output_file}.html"
-    
+
     locust -f locustfile.py --headless \
         --users 100 \
         --spawn-rate 10 \
@@ -144,7 +144,7 @@ function bench_api() {
         --host "http://${host}:${port}" \
         --html "${output_file}.html" \
         --csv "${output_file}"
-    
+
     echo ""
     print_info "Test complete! Results saved to ${output_file}.html"
     echo "Open the report with: open ${output_file}.html"
@@ -162,7 +162,7 @@ function bench_all() {
     bench_api "robyn" "localhost" "8005"
     echo ""
     bench_api "mrhttp" "localhost" "8006"
-    
+
     print_header "Benchmark Comparison Complete"
     echo "Compare the HTML reports to see performance differences across all frameworks."
 }

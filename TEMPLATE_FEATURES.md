@@ -45,7 +45,7 @@ app = Rupy()
 def send_email(request: Request) -> str:
     # Get user data from request
     user_data = request.body  # Parse JSON
-    
+
     # Render email template
     email_template = Template(app, "welcome_email.tpl")
     email_body = email_template.render({
@@ -53,10 +53,10 @@ def send_email(request: Request) -> str:
         "email": user_data["email"],
         "verification_link": f"https://example.com/verify/{user_data['token']}"
     })
-    
+
     # Send email (pseudo-code)
     # send_email_service(user_data["email"], email_body)
-    
+
     return "Email sent!"
 ```
 
