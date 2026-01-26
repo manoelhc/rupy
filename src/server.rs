@@ -327,11 +327,13 @@ async fn handler_request(
                 }
                 
                 if let Some(stripped) = boundary_str.strip_prefix('"') {
-                    // Handle quoted boundary
-                    let end_quote = stripped
-                        .find('"')
-                        .unwrap_or(stripped.len());
-                    stripped[..end_quote].to_string()
+                    // Handle quoted boundary - find closing quote
+                    if let Some(end_quote_pos) = stripped.find('"') {
+                        stripped[..end_quote_pos].to_string()
+                    } else {
+                        // No closing quote, use entire string
+                        stripped.to_string()
+                    }
                 } else {
                     // Handle unquoted boundary
                     boundary_str

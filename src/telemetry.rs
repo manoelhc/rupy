@@ -65,11 +65,14 @@ pub fn record_metrics(
     status_code: u16,
     duration: std::time::Duration,
 ) {
-    let config = telemetry_config.lock().unwrap();
-    if !config.enabled {
+    let enabled = {
+        let config = telemetry_config.lock().unwrap();
+        config.enabled
+    };
+    
+    if !enabled {
         return;
     }
-    drop(config);
     
     // Use a fixed meter name
     let meter = global::meter("rupy");

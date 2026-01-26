@@ -288,11 +288,11 @@ pub fn parse_cookies(cookie_header: &str) -> HashMap<String, String> {
     for cookie in cookie_header.split(';') {
         let cookie = cookie.trim();
         if let Some(eq_pos) = cookie.find('=') {
-            let name = &cookie[..eq_pos];
-            let value = &cookie[eq_pos + 1..];
+            let name = cookie[..eq_pos].trim();
             // Only insert if name is not empty to avoid malformed cookies
-            if !name.trim().is_empty() {
-                cookies.insert(name.trim().to_string(), value.trim().to_string());
+            if !name.is_empty() {
+                let value = cookie[eq_pos + 1..].trim();
+                cookies.insert(name.to_string(), value.to_string());
             }
         }
     }
