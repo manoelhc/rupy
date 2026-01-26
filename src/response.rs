@@ -123,12 +123,13 @@ pub fn build_response(py_response: PyResponse) -> axum::response::Response {
     let status_code = StatusCode::from_u16(py_response.status).unwrap_or(StatusCode::OK);
     let body = py_response.body;
 
-    let mut header_map = HeaderMap::new();
+    let mut header_map = HeaderMap::with_capacity(py_response.headers.len() + py_response.cookies.len());
+    
     for (key, value) in py_response.headers.iter() {
-        if let Ok(header_name) = HeaderName::from_bytes(key.as_bytes()) {
-            if let Ok(header_value) = HeaderValue::from_str(value) {
-                header_map.insert(header_name, header_value);
-            }
+        if let (Ok(header_name), Ok(header_value)) = 
+            (HeaderName::from_bytes(key.as_bytes()), HeaderValue::from_str(value))
+        {
+            header_map.insert(header_name, header_value);
         }
     }
 

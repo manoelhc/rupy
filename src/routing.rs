@@ -69,6 +69,11 @@ pub fn parse_path_params(path: &str) -> Vec<String> {
 }
 
 pub fn match_route(request_path: &str, route_pattern: &str) -> Option<Vec<String>> {
+    // Security: basic path validation to prevent path traversal
+    if request_path.contains("..") {
+        return None;
+    }
+    
     let route_parts: Vec<&str> = route_pattern.split('/').collect();
     let request_parts: Vec<&str> = request_path.split('/').collect();
 
