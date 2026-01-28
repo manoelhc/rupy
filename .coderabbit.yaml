@@ -1,0 +1,133 @@
+# CodeRabbit Configuration
+# Documentation: https://docs.coderabbit.ai/getting-started/yaml-configuration
+
+# Language settings
+language: en-US
+
+# Review settings
+reviews:
+  # Request changes workflow
+  request_changes_workflow: true
+  
+  # High level summary
+  high_level_summary: true
+  
+  # Poem style for summary
+  poem: false
+  
+  # Review status comment
+  review_status: true
+  
+  # Collapse walkthrough
+  collapse_walkthrough: false
+  
+  # Auto-review settings
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+      - master
+      - develop
+
+  # Path-based instructions for focused reviews
+  path_instructions:
+    - path: "src/**/*.rs"
+      instructions: |
+        Focus on:
+        - Memory safety and borrowing issues
+        - Performance implications (allocations, cloning)
+        - Security vulnerabilities (input validation, DoS prevention)
+        - Idiomatic Rust patterns
+        - Error handling best practices
+        - Clippy warnings
+        
+    - path: "python/**/*.py"
+      instructions: |
+        Focus on:
+        - Type hints and mypy compliance
+        - API design and ergonomics
+        - Documentation completeness
+        - Error handling
+        
+    - path: "tests/**/*.py"
+      instructions: |
+        Focus on:
+        - Test coverage and edge cases
+        - Test clarity and maintainability
+        - Performance of test setup/teardown
+        
+    - path: "*.md"
+      instructions: |
+        Focus on:
+        - Documentation clarity and accuracy
+        - Code example correctness
+        - Formatting and structure
+
+# Chat settings
+chat:
+  auto_reply: true
+
+# Tools and static analysis
+tools:
+  # Rust-specific tools
+  rust:
+    cargo_clippy:
+      enabled: true
+      level: "warn"
+    cargo_fmt:
+      enabled: true
+      
+  # Python-specific tools  
+  python:
+    pylint:
+      enabled: false
+    mypy:
+      enabled: false
+    black:
+      enabled: false
+
+# Tone of reviews
+tone_instructions: |
+  - Be concise and constructive
+  - Focus on specific, actionable improvements
+  - Highlight security and performance concerns
+  - Acknowledge good practices
+  - Provide code examples when suggesting changes
+  - Use emoji sparingly for clarity (✅ for good, ⚠️ for concerns, 🔒 for security)
+
+# Early access features
+early_access: false
+
+# Knowledge base
+knowledge_base:
+  opt_out: false
+  
+  # Learnings from this repository
+  learnings:
+    scope: "project"
+
+# File ignore patterns
+ignore:
+  - "*.lock"
+  - "target/**"
+  - ".venv/**"
+  - "__pycache__/**"
+  - "*.pyc"
+  - ".pytest_cache/**"
+  - "build/**"
+  - "dist/**"
+  - "*.egg-info/**"
+  - "node_modules/**"
+  - ".git/**"
+
+# Review limits
+reviews_limits:
+  # Max files to review in a single PR
+  max_files: 100
+  
+  # Max lines of code to review
+  max_lines: 5000
+
+# Comments settings
+enable_free_tier: true
