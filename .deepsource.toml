@@ -1,1 +1,28 @@
 version = 1
+
+[[analyzers]]
+name = "python"
+
+  [analyzers.meta]
+  runtime_version = "3.x.x"
+
+[[analyzers]]
+name = "rust"
+
+  [analyzers.meta]
+  msrv = "stable"
+
+[[code_formatters]]
+name = "rustfmt"
+
+[[code_formatters]]
+name = "isort"
+
+[[code_formatters]]
+name = "yapf"
+
+[[code_formatters]]
+name = "autopep8"
+
+[[code_formatters]]
+name = "ruff"
