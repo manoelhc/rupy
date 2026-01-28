@@ -88,13 +88,7 @@ tools:
       enabled: false
 
 # Tone of reviews
-tone_instructions: |
-  - Be concise and constructive
-  - Focus on specific, actionable improvements
-  - Highlight security and performance concerns
-  - Acknowledge good practices
-  - Provide code examples when suggesting changes
-  - Use emoji sparingly for clarity (✅ for good, ⚠️ for concerns, 🔒 for security)
+tone_instructions: "Be concise and actionable, prioritize security/perf concerns, acknowledge good practices, and use emoji sparingly (✅/⚠️/🔒)."
 
 # Early access features
 early_access: false
@@ -105,7 +99,7 @@ knowledge_base:
   
   # Learnings from this repository
   learnings:
-    scope: "project"
+    scope: "global"
 
 # File ignore patterns
 ignore:
@@ -121,13 +115,12 @@ ignore:
   - "node_modules/**"
   - ".git/**"
 
-# Review limits
-reviews_limits:
-  # Max files to review in a single PR
-  max_files: 100
-  
-  # Max lines of code to review
-  max_lines: 5000
+reviews:
+  path_filters:
+    - "src/**"
+    - "!**/*.test.js"
+  auto_review:
+    labels: ["!wip"]
 
 # Comments settings
 enable_free_tier: true
