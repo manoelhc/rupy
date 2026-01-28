@@ -131,15 +131,18 @@ async fn handler_request(
     let headers_map = request.headers().clone();
     let mut headers = HashMap::with_capacity(headers_map.len().min(MAX_HEADER_COUNT));
     let mut header_count = 0;
-    
+
     for (key, value) in headers_map.iter() {
         // Security: limit number of headers to prevent DoS
         header_count += 1;
         if header_count > MAX_HEADER_COUNT {
-            warn!("Too many headers in request, limiting to {}", MAX_HEADER_COUNT);
+            warn!(
+                "Too many headers in request, limiting to {}",
+                MAX_HEADER_COUNT
+            );
             break;
         }
-        
+
         if let Ok(value_str) = value.to_str() {
             // Security: limit header value size to prevent DoS
             if value_str.len() > MAX_HEADER_VALUE_SIZE {
@@ -159,7 +162,10 @@ async fn handler_request(
         let parsed = parse_cookies(cookie_header);
         // Security: limit number of cookies to prevent DoS
         if parsed.len() > MAX_COOKIE_COUNT {
-            warn!("Too many cookies in request, limiting to {}", MAX_COOKIE_COUNT);
+            warn!(
+                "Too many cookies in request, limiting to {}",
+                MAX_COOKIE_COUNT
+            );
             parsed.into_iter().take(MAX_COOKIE_COUNT).collect()
         } else {
             parsed
@@ -305,7 +311,13 @@ async fn handler_request(
             let content_type = headers.get("content-type").cloned().unwrap_or_default();
 
             // Security: validate content-type format
-            if !content_type.starts_with("multipart/form-data") {
+            let is_multipart = content_type
+                .split(';')
+                .next()
+                .map(|v| v.trim())
+                .map(|v| v.eq_ignore_ascii_case("multipart/form-data"))
+                .unwrap_or(false);
+            if !is_multipart {
                 error!("Invalid content-type for upload route: {}", content_type);
                 let duration = start_time.elapsed();
                 record_metrics(&telemetry_config, &method_str, &path, 400, duration);
@@ -316,16 +328,15 @@ async fn handler_request(
             let boundary = if let Some(boundary_start) = content_type.find("boundary=") {
                 let boundary_str = &content_type[boundary_start + 9..];
                 let boundary_str = boundary_str.trim();
-                
+
                 // Security: validate boundary string
                 if boundary_str.is_empty() || boundary_str.len() > 70 {
                     error!("Invalid boundary length");
                     let duration = start_time.elapsed();
                     record_metrics(&telemetry_config, &method_str, &path, 400, duration);
-                    return (StatusCode::BAD_REQUEST, "Invalid boundary length")
-                        .into_response();
+                    return (StatusCode::BAD_REQUEST, "Invalid boundary length").into_response();
                 }
-                
+
                 if let Some(stripped) = boundary_str.strip_prefix('"') {
                     // Handle quoted boundary - find closing quote
                     if let Some(end_quote_pos) = stripped.find('"') {

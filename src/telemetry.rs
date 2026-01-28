@@ -69,11 +69,11 @@ pub fn record_metrics(
         let config = telemetry_config.lock().unwrap();
         config.enabled
     };
-    
+
     if !enabled {
         return;
     }
-    
+
     // Use a fixed meter name
     let meter = global::meter("rupy");
     let counter = meter

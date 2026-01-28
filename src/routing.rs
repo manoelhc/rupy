@@ -70,10 +70,22 @@ pub fn parse_path_params(path: &str) -> Vec<String> {
 
 pub fn match_route(request_path: &str, route_pattern: &str) -> Option<Vec<String>> {
     // Security: basic path validation to prevent path traversal
-    if request_path.contains("..") {
+    // Security: reject traversal segments after decoding
+    use percent_encoding::percent_decode_str;
+    let has_traversal = request_path
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .any(|segment| {
+            percent_decode_str(segment)
+                .decode_utf8()
+                .ok()
+                .map(|decoded| decoded == ".." || decoded == ".")
+                .unwrap_or(false)
+        });
+    if has_traversal {
         return None;
     }
-    
+
     let route_parts: Vec<&str> = route_pattern.split('/').collect();
     let request_parts: Vec<&str> = request_path.split('/').collect();
 

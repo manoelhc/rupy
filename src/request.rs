@@ -284,7 +284,7 @@ pub fn parse_cookies(cookie_header: &str) -> HashMap<String, String> {
     // Estimate capacity based on typical cookie size
     let estimated_cookies = cookie_header.matches(';').count() + 1;
     let mut cookies = HashMap::with_capacity(estimated_cookies);
-    
+
     for cookie in cookie_header.split(';') {
         let cookie = cookie.trim();
         if let Some(eq_pos) = cookie.find('=') {
