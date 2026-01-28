@@ -65,36 +65,33 @@ pub fn record_metrics(
     status_code: u16,
     duration: std::time::Duration,
 ) {
-    let config = telemetry_config.lock().unwrap();
-    if config.enabled {
-        // Use a fixed meter name or cache the meter elsewhere
-        let meter = global::meter("rupy");
-        let counter = meter
-            .u64_counter("http.server.requests")
-            .with_description("Total number of HTTP requests")
-            .build();
-        let histogram = meter
-            .f64_histogram("http.server.duration")
-            .with_description("HTTP request duration in seconds")
-            .with_unit("s")
-            .build();
+    let enabled = {
+        let config = telemetry_config.lock().unwrap();
+        config.enabled
+    };
 
-        counter.add(
-            1,
-            &[
-                KeyValue::new("http.method", method_str.to_string()),
-                KeyValue::new("http.route", path.to_string()),
-                KeyValue::new("http.status_code", status_code as i64),
-            ],
-        );
-
-        histogram.record(
-            duration.as_secs_f64(),
-            &[
-                KeyValue::new("http.method", method_str.to_string()),
-                KeyValue::new("http.route", path.to_string()),
-                KeyValue::new("http.status_code", status_code as i64),
-            ],
-        );
+    if !enabled {
+        return;
     }
+
+    // Use a fixed meter name
+    let meter = global::meter("rupy");
+    let counter = meter
+        .u64_counter("http.server.requests")
+        .with_description("Total number of HTTP requests")
+        .build();
+    let histogram = meter
+        .f64_histogram("http.server.duration")
+        .with_description("HTTP request duration in seconds")
+        .with_unit("s")
+        .build();
+
+    let attributes = &[
+        KeyValue::new("http.method", method_str.to_string()),
+        KeyValue::new("http.route", path.to_string()),
+        KeyValue::new("http.status_code", status_code as i64),
+    ];
+
+    counter.add(1, attributes);
+    histogram.record(duration.as_secs_f64(), attributes);
 }

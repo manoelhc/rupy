@@ -1,0 +1,93 @@
+language: en-US
+reviews:
+  tools:
+    clippy:
+      enabled: true
+    pylint:
+      enabled: false
+  path_filters:
+    - src/**
+    - '!**/*.test.js'
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+      - master
+      - develop
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  path_instructions:
+    - path: src/**/*.rs
+      instructions: 'Focus on:
+
+        - Memory safety and borrowing issues
+
+        - Performance implications (allocations, cloning)
+
+        - Security vulnerabilities (input validation, DoS prevention)
+
+        - Idiomatic Rust patterns
+
+        - Error handling best practices
+
+        - Clippy warnings
+
+        '
+    - path: python/**/*.py
+      instructions: 'Focus on:
+
+        - Type hints and mypy compliance
+
+        - API design and ergonomics
+
+        - Documentation completeness
+
+        - Error handling
+
+        '
+    - path: tests/**/*.py
+      instructions: 'Focus on:
+
+        - Test coverage and edge cases
+
+        - Test clarity and maintainability
+
+        - Performance of test setup/teardown
+
+        '
+    - path: '*.md'
+      instructions: 'Focus on:
+
+        - Documentation clarity and accuracy
+
+        - Code example correctness
+
+        - Formatting and structure
+
+        '
+chat:
+  auto_reply: true
+tone_instructions: Be concise and actionable, prioritize security/perf concerns, acknowledge
+  good practices, and use emoji sparingly (✅/⚠️/🔒).
+early_access: false
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: global
+ignore:
+  - '*.lock'
+  - target/**
+  - .venv/**
+  - __pycache__/**
+  - '*.pyc'
+  - .pytest_cache/**
+  - build/**
+  - dist/**
+  - '*.egg-info/**'
+  - node_modules/**
+  - .git/**
+enable_free_tier: true

@@ -5,6 +5,10 @@ use std::io::Write;
 use std::path::PathBuf;
 use tempfile::NamedTempFile;
 
+// Security constants
+const MAX_FILENAME_LENGTH: usize = 255;
+const MAX_CONTENT_TYPE_LENGTH: usize = 256;
+
 #[pyclass]
 #[derive(Clone)]
 pub struct PyUploadFile {
@@ -61,7 +65,7 @@ pub async fn process_multipart_upload(
 ) -> Result<Vec<PyUploadFile>, String> {
     let stream = body.into_data_stream();
     let mut multipart = Multipart::new(stream, boundary);
-    let mut uploaded_files: std::vec::Vec<PyUploadFile> = Vec::new();
+    let mut uploaded_files: Vec<PyUploadFile> = Vec::new();
 
     while let Some(mut field) = multipart
         .next_field()
@@ -73,10 +77,31 @@ pub async fn process_multipart_upload(
             .map(|s| s.to_string())
             .unwrap_or_else(|| "unknown".to_string());
 
+        // Security: validate filename length
+        if filename.len() > MAX_FILENAME_LENGTH {
+            return Err(format!(
+                "Filename too long (max {} characters): {}",
+                MAX_FILENAME_LENGTH, filename
+            ));
+        }
+
+        // Security: validate filename doesn't contain path traversal
+        if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+            return Err(format!("Invalid filename: {}", filename));
+        }
+
         let content_type = field
             .content_type()
             .map(|s| s.to_string())
             .unwrap_or_else(|| "application/octet-stream".to_string());
+
+        // Security: validate content type length
+        if content_type.len() > MAX_CONTENT_TYPE_LENGTH {
+            return Err(format!(
+                "Content-Type too long (max {} characters)",
+                MAX_CONTENT_TYPE_LENGTH
+            ));
+        }
 
         if !upload_config.accepted_mime_types.is_empty() {
             let mime_accepted = upload_config.accepted_mime_types.iter().any(|accepted| {

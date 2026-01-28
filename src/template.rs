@@ -17,7 +17,7 @@ pub fn render_template_with_dirs(
     let mut handlebars = Handlebars::new();
 
     let mut template_content = None;
-    let mut tried_paths = Vec::new();
+    let mut tried_paths = Vec::with_capacity(template_dirs.len());
 
     for template_dir in template_dirs {
         let template_path = PathBuf::from(template_dir).join(template_name);

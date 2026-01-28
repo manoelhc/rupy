@@ -20,6 +20,11 @@ use crate::telemetry::{init_telemetry, record_metrics, TelemetryConfig, Telemetr
 use crate::template::render_template_with_dirs;
 use crate::upload::process_multipart_upload;
 
+// Security constants
+const MAX_HEADER_COUNT: usize = 100;
+const MAX_HEADER_VALUE_SIZE: usize = 8192;
+const MAX_COOKIE_COUNT: usize = 50;
+
 pub async fn run_server(
     host: &str,
     port: u16,
@@ -124,9 +129,26 @@ async fn handler_request(
     let method_str = method.as_str().to_string();
 
     let headers_map = request.headers().clone();
-    let mut headers = HashMap::new();
+    let mut headers = HashMap::with_capacity(headers_map.len().min(MAX_HEADER_COUNT));
+    let mut header_count = 0;
+
     for (key, value) in headers_map.iter() {
+        // Security: limit number of headers to prevent DoS
+        header_count += 1;
+        if header_count > MAX_HEADER_COUNT {
+            warn!(
+                "Too many headers in request, limiting to {}",
+                MAX_HEADER_COUNT
+            );
+            break;
+        }
+
         if let Ok(value_str) = value.to_str() {
+            // Security: limit header value size to prevent DoS
+            if value_str.len() > MAX_HEADER_VALUE_SIZE {
+                warn!("Header value too large, truncating: {}", key);
+                continue;
+            }
             headers.insert(key.as_str().to_string(), value_str.to_string());
         }
     }
@@ -137,7 +159,17 @@ async fn handler_request(
         .unwrap_or_else(|| "unknown".to_string());
 
     let cookies = if let Some(cookie_header) = headers.get("cookie") {
-        parse_cookies(cookie_header)
+        let parsed = parse_cookies(cookie_header);
+        // Security: limit number of cookies to prevent DoS
+        if parsed.len() > MAX_COOKIE_COUNT {
+            warn!(
+                "Too many cookies in request, limiting to {}",
+                MAX_COOKIE_COUNT
+            );
+            parsed.into_iter().take(MAX_COOKIE_COUNT).collect()
+        } else {
+            parsed
+        }
     } else {
         HashMap::new()
     };
@@ -278,15 +310,43 @@ async fn handler_request(
 
             let content_type = headers.get("content-type").cloned().unwrap_or_default();
 
+            // Security: validate content-type format
+            let is_multipart = content_type
+                .split(';')
+                .next()
+                .map(|v| v.trim())
+                .map(|v| v.eq_ignore_ascii_case("multipart/form-data"))
+                .unwrap_or(false);
+            if !is_multipart {
+                error!("Invalid content-type for upload route: {}", content_type);
+                let duration = start_time.elapsed();
+                record_metrics(&telemetry_config, &method_str, &path, 400, duration);
+                return (StatusCode::BAD_REQUEST, "Invalid Content-Type for upload")
+                    .into_response();
+            }
+
             let boundary = if let Some(boundary_start) = content_type.find("boundary=") {
                 let boundary_str = &content_type[boundary_start + 9..];
                 let boundary_str = boundary_str.trim();
-                if boundary_str.starts_with('"') && boundary_str.contains('"') {
-                    let end_quote = boundary_str[1..]
-                        .find('"')
-                        .unwrap_or(boundary_str.len() - 1);
-                    boundary_str[1..=end_quote].to_string()
+
+                // Security: validate boundary string
+                if boundary_str.is_empty() || boundary_str.len() > 70 {
+                    error!("Invalid boundary length");
+                    let duration = start_time.elapsed();
+                    record_metrics(&telemetry_config, &method_str, &path, 400, duration);
+                    return (StatusCode::BAD_REQUEST, "Invalid boundary length").into_response();
+                }
+
+                if let Some(stripped) = boundary_str.strip_prefix('"') {
+                    // Handle quoted boundary - find closing quote
+                    if let Some(end_quote_pos) = stripped.find('"') {
+                        stripped[..end_quote_pos].to_string()
+                    } else {
+                        // No closing quote, use entire string
+                        stripped.to_string()
+                    }
                 } else {
+                    // Handle unquoted boundary
                     boundary_str
                         .split(';')
                         .next()
