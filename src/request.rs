@@ -14,7 +14,7 @@ fn decode_query_value(s: &str) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct PyRequest {
     #[pyo3(get)]
