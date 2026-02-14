@@ -9,7 +9,7 @@ use tempfile::NamedTempFile;
 const MAX_FILENAME_LENGTH: usize = 255;
 const MAX_CONTENT_TYPE_LENGTH: usize = 256;
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct PyUploadFile {
     #[pyo3(get)]
