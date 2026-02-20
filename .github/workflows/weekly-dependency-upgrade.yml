@@ -1,0 +1,154 @@
+name: Weekly Dependency Upgrade
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'  # Every Monday at midnight UTC
+  workflow_dispatch:
+
+jobs:
+  upgrade-and-test:
+    name: Upgrade Dependencies and Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Upgrade Rust dependencies
+        run: cargo update
+
+      - name: Upgrade Python lockfile
+        run: uv lock --upgrade
+
+      - name: Upgrade requirements.txt files
+        run: |
+          find . -name "requirements*.txt" -not -path "./.git/*" | while read f; do
+            uv pip compile --upgrade "$f" -o "$f" 2>/dev/null || true
+          done
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build project
+        run: maturin build --release
+
+      - name: Install built wheel
+        run: |
+          pip install target/wheels/rupy_api*cp312*.whl
+
+      - name: Run Rust tests
+        id: rust_tests
+        run: cargo test --release
+        continue-on-error: true
+
+      - name: Run Python tests
+        id: python_tests
+        shell: bash
+        run: |
+          pip install pytest requests
+          pytest tests/ -v 2>&1 | tee /tmp/pytest_output.txt
+          exit ${PIPESTATUS[0]}
+        continue-on-error: true
+
+      - name: Determine test outcome
+        id: test_outcome
+        run: |
+          if [ "${{ steps.rust_tests.outcome }}" = "failure" ] || [ "${{ steps.python_tests.outcome }}" = "failure" ]; then
+            echo "tests_passed=false" >> $GITHUB_OUTPUT
+          else
+            echo "tests_passed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Read pytest output
+        id: pytest_output
+        if: steps.test_outcome.outputs.tests_passed == 'false'
+        run: |
+          output=$(cat /tmp/pytest_output.txt 2>/dev/null | tail -100 || echo "No pytest output available")
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$output" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create PR (tests passed)
+        if: steps.test_outcome.outputs.tests_passed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: weekly dependency upgrade'
+          title: 'chore: weekly dependency upgrade'
+          body: |
+            Automated weekly dependency upgrade. All tests passed. ✅
+
+            **Changes include:**
+            - Updated `Cargo.lock` via `cargo update`
+            - Updated `uv.lock` via `uv lock --upgrade`
+            - Updated `requirements.txt` files via `uv pip compile --upgrade`
+          branch: deps/weekly-upgrade
+          base: main
+          delete-branch: true
+
+      - name: Create PR (tests failed)
+        if: steps.test_outcome.outputs.tests_passed == 'false'
+        uses: peter-evans/create-pull-request@v7
+        id: create_pr
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: weekly dependency upgrade (tests failing)'
+          title: 'chore: weekly dependency upgrade (tests failing — needs fix)'
+          body: |
+            Automated weekly dependency upgrade. ⚠️ Tests are failing after the upgrade.
+
+            **Changes include:**
+            - Updated `Cargo.lock` via `cargo update`
+            - Updated `uv.lock` via `uv lock --upgrade`
+            - Updated `requirements.txt` files via `uv pip compile --upgrade`
+
+            ---
+
+            @copilot Please fix all broken code caused by the dependency upgrades.
+
+            **To reproduce the issue locally:**
+            ```bash
+            cargo update
+            uv lock --upgrade
+            maturin build --release
+            pip install target/wheels/rupy_api*cp312*.whl
+            cargo test --release
+            pip install pytest requests
+            pytest tests/ -v
+            ```
+
+            **Test output:**
+            ```
+            ${{ steps.pytest_output.outputs.content }}
+            ```
+          branch: deps/weekly-upgrade
+          base: main
+          delete-branch: true
