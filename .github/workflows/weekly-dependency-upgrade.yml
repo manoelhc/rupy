@@ -122,6 +122,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: 'chore: weekly dependency upgrade (tests failing)'
           title: 'chore: weekly dependency upgrade (tests failing — needs fix)'
+          assignees: copilot
           body: |
             Automated weekly dependency upgrade. ⚠️ Tests are failing after the upgrade.
 
