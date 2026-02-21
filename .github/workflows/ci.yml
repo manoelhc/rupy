@@ -123,6 +123,8 @@ jobs:
         uses: actions/setup-python@v6
         with:
           pip-version: '26.0.1'
+          allow-prereleases: true
+          cache: pip
 
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
