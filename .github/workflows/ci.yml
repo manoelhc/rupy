@@ -48,7 +48,7 @@ jobs:
         run: cargo test --release
 
   python-build-and-test:
-    if: github.event.pull_request.manual_workflow == false && github.event.pull_request.draft == false
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     name: Python Build and Test
     runs-on: ${{ matrix.os }}
     strategy:
@@ -110,7 +110,7 @@ jobs:
         shell: bash
         continue-on-error: true
   build-draft:
-    if: github.event.pull_request.manual_workflow == true || github.event.pull_request.draft == true
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == true
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
