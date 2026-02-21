@@ -122,6 +122,7 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
+          architecture: arm64
           python-version: ${{ matrix.python-version }}
 
       - name: Install Rust toolchain
