@@ -121,6 +121,8 @@ jobs:
 
       - name: Set up Python
         uses: actions/setup-python@v6
+        with:
+          pip-version: '26.0.1'
 
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
