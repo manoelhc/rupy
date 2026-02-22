@@ -124,7 +124,12 @@ jobs:
         with:
           pip-version: '26.0.1'
           allow-prereleases: true
+          architecture: arm64
+          freethreaded: true
+          platform: linux
           cache: pip
+          pip-install: uv
+          python-version-file: .python-version
 
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
