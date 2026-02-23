@@ -121,9 +121,10 @@ jobs:
 
       - name: Set up Python
         uses: actions/setup-python@v6
+        env:
+          ImageOS: ubuntu24
         with:
           allow-prereleases: true
-          architecture: arm64
           cache: pip
           python-version-file: .python-version
 
@@ -152,10 +153,8 @@ jobs:
         run: maturin build --release
 
       - name: Install built wheel
-        env:
-          PYTHON_VERSION: "3.12"
         run: |
-          vpy="$(echo ${PYTHON_VERSION} | cut -d. -f1)$(echo ${PYTHON_VERSION} | cut -d. -f2)"
+          vpy="$(python --version | cut -d' ' -f2 | cut -d. -f1,2 | tr -d '.')"
           pip install target/wheels/rupy_api*cp${vpy}*.whl
         shell: bash
 
