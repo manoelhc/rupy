@@ -89,7 +89,7 @@ jobs:
         run: maturin build --release
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.os }}-${{ matrix.python-version }}
           path: target/wheels/*.whl
