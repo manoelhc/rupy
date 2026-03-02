@@ -7,18 +7,34 @@ ansible-core==2.20.2
     #   -r ./benchmark/ansible-deployment/requirements.txt
     #   ansible
 cffi==2.0.0
-    # via cryptography
+    # via
+    #   -r ./benchmark/ansible-deployment/requirements.txt
+    #   cryptography
 cryptography==46.0.5
-    # via ansible-core
+    # via
+    #   -r ./benchmark/ansible-deployment/requirements.txt
+    #   ansible-core
 jinja2==3.1.6
-    # via ansible-core
+    # via
+    #   -r ./benchmark/ansible-deployment/requirements.txt
+    #   ansible-core
 markupsafe==3.0.3
-    # via jinja2
+    # via
+    #   -r ./benchmark/ansible-deployment/requirements.txt
+    #   jinja2
 packaging==26.0
-    # via ansible-core
+    # via
+    #   -r ./benchmark/ansible-deployment/requirements.txt
+    #   ansible-core
 pycparser==3.0
-    # via cffi
+    # via
+    #   -r ./benchmark/ansible-deployment/requirements.txt
+    #   cffi
 pyyaml==6.0.3
-    # via ansible-core
+    # via
+    #   -r ./benchmark/ansible-deployment/requirements.txt
+    #   ansible-core
 resolvelib==1.2.1
-    # via ansible-core
+    # via
+    #   -r ./benchmark/ansible-deployment/requirements.txt
+    #   ansible-core
