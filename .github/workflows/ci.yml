@@ -7,16 +7,19 @@ on:
     branches: [main, develop]
 
 jobs:
+  install-deps:
+    runs-on: rpi
+    steps:
+      - uses: manoelhc/debian-runner-setup-action@v1-sudo
+        with:
+          packages: full
   rust-build-and-test:
+    needs: install-deps
     permissions:
       contents: read
     name: Rust Build and Test
     runs-on: rpi
-
     steps:
-      - uses: manoelhc/debian-runner-setup-action@v1
-        with:
-          packages: full
       - uses: actions/checkout@v6
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -50,6 +53,7 @@ jobs:
         run: cargo test --release
 
   python-build-and-test:
+    needs: install-deps
     if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     name: Python Build and Test
     runs-on: ${{ matrix.os }}
@@ -114,6 +118,7 @@ jobs:
         shell: bash
         continue-on-error: true
   build-draft:
+    needs: install-deps
     if: github.event_name == 'pull_request' && github.event.pull_request.draft == true
     runs-on: rpi
     permissions:
@@ -187,6 +192,7 @@ jobs:
         shell: bash
         continue-on-error: true
   lint:
+    needs: install-deps
     permissions:
       contents: read
     name: Lint and Format Check
