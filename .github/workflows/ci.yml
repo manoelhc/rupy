@@ -135,7 +135,9 @@ jobs:
         shell: bash
         run: |
           export PYENV_ROOT="${HOME}/.pyenv"
-          if [ ! -d "${PYENV_ROOT}" ]; then
+          export PATH="${PYENV_ROOT}/bin:${PATH}"
+          if [ -z "$(which pyenv 2>/dev/null)" ]; then
+            rm -rf ${PYENV_ROOT} || true
             curl --proto '=https' --tlsv1.2 -sSf https://pyenv.run | bash        
             export PATH="${PYENV_ROOT}/bin:${PATH}"
             eval "$(pyenv init -)"
