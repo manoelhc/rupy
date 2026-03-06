@@ -10,7 +10,7 @@ jobs:
   install-deps:
     runs-on: rpi
     steps:
-      - uses: manoelhc/debian-runner-setup-action@v1
+      - uses: manoelhc/debian-runner-setup-action@main
         with:
           packages: full
           sudo: true
