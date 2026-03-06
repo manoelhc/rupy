@@ -10,7 +10,7 @@ jobs:
   install-deps:
     runs-on: rpi
     steps:
-      - uses: manoelhc/debian-runner-setup-action@v1-sudo
+      - uses: manoelhc/debian-runner-setup-action@v2
         with:
           packages: full
   rust-build-and-test:
