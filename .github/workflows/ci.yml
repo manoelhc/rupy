@@ -14,8 +14,10 @@ jobs:
     runs-on: rpi
 
     steps:
+      - uses: manoelhc/debian-runner-setup-action@v1
+        with:
+          packages: full
       - uses: actions/checkout@v6
-
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
