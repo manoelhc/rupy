@@ -147,6 +147,7 @@ jobs:
             echo "PYENV_ROOT=${PYENV_ROOT}" >> "${GITHUB_ENV}"
             echo "${PYENV_ROOT}/bin" >> "${GITHUB_PATH}"
             echo "${PYENV_ROOT}/shims" >> "${GITHUB_PATH}"
+            echo 'eval "$(pyenv init -)"' >> ~/.bashrc
           else
             eval "$(pyenv init -)"
             PYTHON_VERSION=$(cat .python-version)
