@@ -290,7 +290,7 @@ async fn handler_request(
                     }
 
                     // Return the modified request
-                    Err(py_request)
+                    Err(Box::new(py_request))
                 })
             };
 
@@ -369,7 +369,7 @@ async fn handler_request(
                 Ok(uploaded_files) => {
                     let resp = Python::attach(|py| {
                         // Use the modified request from middleware
-                        let py_request = py_request_after_middleware.clone();
+                        let py_request = py_request_after_middleware.as_ref().clone();
 
                         let py_files = pyo3::types::PyList::empty(py);
                         for file in uploaded_files {
@@ -464,7 +464,7 @@ async fn handler_request(
             }
 
             // Return the modified request wrapped in Err to distinguish from early responses
-            Err(py_request)
+            Err(Box::new(py_request))
         })
     };
 
@@ -489,7 +489,7 @@ async fn handler_request(
 
         let resp = Python::attach(|py| {
             // Use the modified request from middleware instead of creating a new one
-            let py_request = py_request_after_middleware.clone();
+            let py_request = py_request_after_middleware.as_ref().clone();
 
             let result = if param_values.is_empty() {
                 route_info.handler.call1(py, (py_request,))
