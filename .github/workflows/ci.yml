@@ -7,15 +7,21 @@ on:
     branches: [main, develop]
 
 jobs:
+  install-deps:
+    runs-on: rpi
+    steps:
+      - uses: manoelhc/debian-runner-setup-action@main
+        with:
+          packages: full
+          sudo: true
   rust-build-and-test:
+    needs: install-deps
     permissions:
       contents: read
     name: Rust Build and Test
-    runs-on: ubuntu-latest
-
+    runs-on: rpi
     steps:
       - uses: actions/checkout@v6
-
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -48,8 +54,12 @@ jobs:
         run: cargo test --release
 
   python-build-and-test:
+    needs: install-deps
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     name: Python Build and Test
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
@@ -57,7 +67,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
@@ -108,8 +117,87 @@ jobs:
           fi
         shell: bash
         continue-on-error: true
+  build-draft:
+    needs: install-deps
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == true
+    runs-on: rpi
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - name: Cache pyenv Python installation
+        uses: actions/cache@v5
+        with:
+          path: ~/.pyenv/versions
+          key: pyenv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.python-version') }}
 
+      - name: Set up Python via pyenv
+        shell: bash
+        run: |
+          if [ -z "$(which pyenv 2>/dev/null)" ]; then
+            rm -rf ${PYENV_ROOT} || true
+            curl --proto '=https' --tlsv1.2 -sSf https://pyenv.run | bash        
+            export PATH="${PYENV_ROOT}/bin:${PATH}"
+            eval "$(pyenv init -)"
+            PYTHON_VERSION=$(cat .python-version)
+            pyenv install -s "${PYTHON_VERSION}"
+            pyenv global "${PYTHON_VERSION}"
+            echo "PYENV_ROOT=${PYENV_ROOT}" >> "${GITHUB_ENV}"
+            echo "${PYENV_ROOT}/bin" >> "${GITHUB_PATH}"
+            echo "${PYENV_ROOT}/shims" >> "${GITHUB_PATH}"
+            echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+          else
+            eval "$(pyenv init -)"
+            PYTHON_VERSION=$(cat .python-version)
+            pyenv install -s "${PYTHON_VERSION}" || true
+            pyenv global "${PYTHON_VERSION}"
+          fi
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build Python package
+        run: maturin build --release
+
+      - name: Install built wheel
+        run: |
+          vpy="$(python --version | cut -d' ' -f2 | cut -d. -f1,2 | tr -d '.')"
+          pip install target/wheels/rupy_api*cp${vpy}*.whl
+        shell: bash
+
+      - name: Test Python import
+        run: python -c "from rupy import Rupy; print('Successfully imported Rupy')"
+
+      - name: Run Python tests (if they exist)
+        run: |
+          if [ -d "tests" ]; then
+            pip install pytest requests
+            pytest tests/
+          else
+            echo "No Python tests found, skipping"
+          fi
+        shell: bash
+        continue-on-error: true
   lint:
+    needs: install-deps
     permissions:
       contents: read
     name: Lint and Format Check
@@ -117,7 +205,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
