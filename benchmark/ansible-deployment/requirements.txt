@@ -10,7 +10,7 @@ cffi==2.0.0
     # via
     #   -r ./benchmark/ansible-deployment/requirements.txt
     #   cryptography
-cryptography==46.0.5
+cryptography==46.0.7
     # via
     #   -r ./benchmark/ansible-deployment/requirements.txt
     #   ansible-core
