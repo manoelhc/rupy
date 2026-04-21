@@ -22,7 +22,7 @@ pydantic==2.12.5
     # via fastapi
 pydantic-core==2.41.5
     # via pydantic
-python-dotenv==1.2.1
+python-dotenv==1.2.2
     # via uvicorn
 pyyaml==6.0.3
     # via uvicorn
