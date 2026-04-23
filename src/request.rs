@@ -25,6 +25,7 @@ pub struct PyRequest {
     body: String,
     headers: HashMap<String, String>,
     cookies: HashMap<String, String>,
+    parsed_query_params: HashMap<String, String>,
 }
 
 impl PyRequest {
@@ -35,12 +36,14 @@ impl PyRequest {
         headers: HashMap<String, String>,
         cookies: HashMap<String, String>,
     ) -> Self {
+        let parsed_query_params = parse_query_string(&path);
         PyRequest {
             method,
             path,
             body,
             headers,
             cookies,
+            parsed_query_params,
         }
     }
 }
@@ -49,12 +52,14 @@ impl PyRequest {
 impl PyRequest {
     #[new]
     fn new(method: String, path: String, body: String) -> Self {
+        let parsed_query_params = parse_query_string(&path);
         PyRequest {
             method,
             path,
             body,
             headers: HashMap::new(),
             cookies: HashMap::new(),
+            parsed_query_params,
         }
     }
 
@@ -140,32 +145,7 @@ impl PyRequest {
     /// # Example
     /// For path `/search?q=rust&page=1&debug`, returns `["q", "page", "debug"]`
     fn get_query_keys(&self, _py: Python) -> PyResult<Vec<String>> {
-        let Some(query_start) = self.path.find('?') else {
-            return Ok(Vec::new());
-        };
-
-        let query_string = &self.path[query_start + 1..];
-        // Pre-allocate with estimated capacity to reduce allocations
-        let estimated_params = query_string.matches('&').count() + 1;
-        let mut keys = Vec::with_capacity(estimated_params);
-
-        for param in query_string.split('&') {
-            if param.is_empty() {
-                continue;
-            }
-
-            let key = if let Some(eq_pos) = param.find('=') {
-                &param[..eq_pos]
-            } else {
-                param
-            };
-
-            // URL decode the key
-            if let Some(decoded) = decode_query_value(key) {
-                keys.push(decoded);
-            }
-        }
-        Ok(keys)
+        Ok(self.parsed_query_params.keys().cloned().collect())
     }
 
     /// Get the path without query string
@@ -203,35 +183,7 @@ impl PyRequest {
     /// For path `/search?q=rust+programming&page=2`,
     /// `get_query_param("q")` returns `Some("rust programming")`
     fn get_query_param(&self, _py: Python, key: String) -> PyResult<Option<String>> {
-        if let Some(query_start) = self.path.find('?') {
-            let query_string = &self.path[query_start + 1..];
-            let mut result = None;
-
-            for param in query_string.split('&') {
-                if let Some(eq_pos) = param.find('=') {
-                    let param_key = &param[..eq_pos];
-
-                    // URL decode the key for comparison
-                    if let Some(decoded_key) = decode_query_value(param_key) {
-                        if decoded_key == key {
-                            let value = &param[eq_pos + 1..];
-                            // URL decode the value
-                            result = decode_query_value(value);
-                        }
-                    }
-                } else if !param.is_empty() {
-                    // Handle parameters without values (e.g., ?flag)
-                    if let Some(decoded_key) = decode_query_value(param) {
-                        if decoded_key == key {
-                            result = Some(String::new());
-                        }
-                    }
-                }
-            }
-            Ok(result)
-        } else {
-            Ok(None)
-        }
+        Ok(self.parsed_query_params.get(&key).cloned())
     }
 
     /// Get all query parameters as a dictionary
@@ -249,35 +201,37 @@ impl PyRequest {
     #[getter]
     fn query_params(&self, py: Python) -> PyResult<Py<PyDict>> {
         let dict = PyDict::new(py);
-        let Some(query_start) = self.path.find('?') else {
-            return Ok(dict.into());
-        };
+        for (key, value) in &self.parsed_query_params {
+            dict.set_item(key, value)?;
+        }
+        Ok(dict.into())
+    }
+}
 
-        let query_string = &self.path[query_start + 1..];
+pub fn parse_query_string(path: &str) -> HashMap<String, String> {
+    let mut params = HashMap::new();
+    if let Some(query_start) = path.find('?') {
+        let query_string = &path[query_start + 1..];
         for param in query_string.split('&') {
             if param.is_empty() {
                 continue;
             }
-
             if let Some(eq_pos) = param.find('=') {
                 let key = &param[..eq_pos];
                 let value = &param[eq_pos + 1..];
-
-                // URL decode both key and value
                 if let (Some(decoded_key), Some(decoded_value)) =
                     (decode_query_value(key), decode_query_value(value))
                 {
-                    dict.set_item(&decoded_key, &decoded_value)?;
+                    params.insert(decoded_key, decoded_value);
                 }
             } else {
-                // Handle parameters without values (e.g., ?flag)
                 if let Some(decoded_key) = decode_query_value(param) {
-                    dict.set_item(&decoded_key, "")?;
+                    params.insert(decoded_key, String::new());
                 }
             }
         }
-        Ok(dict.into())
     }
+    params
 }
 
 pub fn parse_cookies(cookie_header: &str) -> HashMap<String, String> {

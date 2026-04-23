@@ -1,7 +1,7 @@
 use opentelemetry::{global, KeyValue};
 use opentelemetry_sdk::{metrics::SdkMeterProvider, trace::SdkTracerProvider, Resource};
 use opentelemetry_semantic_conventions as semcov;
-use std::sync::{Arc, Mutex};
+
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -59,18 +59,13 @@ pub fn init_telemetry(config: &TelemetryConfig) -> TelemetryGuard {
 }
 
 pub fn record_metrics(
-    telemetry_config: &Arc<Mutex<TelemetryConfig>>,
+    telemetry_config: &TelemetryConfig,
     method_str: &str,
     path: &str,
     status_code: u16,
     duration: std::time::Duration,
 ) {
-    let enabled = {
-        let config = telemetry_config.lock().unwrap();
-        config.enabled
-    };
-
-    if !enabled {
+    if !telemetry_config.enabled {
         return;
     }
 

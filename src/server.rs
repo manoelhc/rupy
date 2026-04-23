@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 
 use axum::{
@@ -20,6 +20,11 @@ use crate::telemetry::{init_telemetry, record_metrics, TelemetryConfig, Telemetr
 use crate::template::render_template_with_dirs;
 use crate::upload::process_multipart_upload;
 
+enum MiddlewareOutcome {
+    Response(axum::response::Response, u16),
+    Continue(PyRequest),
+}
+
 // Security constants
 const MAX_HEADER_COUNT: usize = 100;
 const MAX_HEADER_VALUE_SIZE: usize = 8192;
@@ -28,14 +33,15 @@ const MAX_COOKIE_COUNT: usize = 50;
 pub async fn run_server(
     host: &str,
     port: u16,
-    routes: Arc<Mutex<Vec<RouteInfo>>>,
-    middlewares: Arc<Mutex<Vec<MiddlewareInfo>>>,
-    telemetry_config: Arc<Mutex<TelemetryConfig>>,
-    template_config: Arc<Mutex<crate::template::TemplateConfig>>,
+    routes: Arc<Vec<RouteInfo>>,
+    middlewares: Arc<Vec<MiddlewareInfo>>,
+    telemetry_config: Arc<TelemetryConfig>,
+    template_config: Arc<crate::template::TemplateConfig>,
+    max_body_size: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
     Python::initialize();
 
-    let config = telemetry_config.lock().unwrap().clone();
+    let config = telemetry_config.clone();
     let _telemetry_guard: Option<TelemetryGuard> = if config.enabled {
         Some(init_telemetry(&config))
     } else {
@@ -57,6 +63,7 @@ pub async fn run_server(
                     middlewares,
                     telemetry_config,
                     template_config,
+                    max_body_size,
                 )
                 .await
             }
@@ -115,10 +122,11 @@ async fn handler_request(
     method: Method,
     uri: Uri,
     request: Request,
-    routes: Arc<Mutex<Vec<RouteInfo>>>,
-    middlewares: Arc<Mutex<Vec<MiddlewareInfo>>>,
-    telemetry_config: Arc<Mutex<TelemetryConfig>>,
-    template_config: Arc<Mutex<crate::template::TemplateConfig>>,
+    routes: Arc<Vec<RouteInfo>>,
+    middlewares: Arc<Vec<MiddlewareInfo>>,
+    telemetry_config: Arc<TelemetryConfig>,
+    template_config: Arc<crate::template::TemplateConfig>,
+    max_body_size: usize,
 ) -> axum::response::Response {
     let start_time = Instant::now();
     let path = match uri.path_and_query() {
@@ -190,10 +198,9 @@ async fn handler_request(
     );
 
     let matched_route = {
-        let routes_lock = routes.lock().unwrap();
         let mut matched: Option<(RouteInfo, Vec<String>)> = None;
 
-        for route_info in routes_lock.iter() {
+        for route_info in routes.iter() {
             if let Some(param_values) = match_route(&path_without_query, &route_info.path) {
                 if route_info.methods.iter().any(|m| m == &method_str) {
                     matched = Some((route_info.clone(), param_values));
@@ -221,9 +228,7 @@ async fn handler_request(
         || method == Method::PATCH
         || method == Method::DELETE
     {
-        // TODO: make it configurable via app method
-        const MAX_BODY_SIZE: usize = 10 * 1024 * 1024; // 10MB default
-        match axum::body::to_bytes(request.into_body(), MAX_BODY_SIZE).await {
+        match axum::body::to_bytes(request.into_body(), max_body_size).await {
             Ok(bytes) => (String::from_utf8_lossy(&bytes).to_string(), None),
             Err(e) => {
                 error!("Body read error: {}", e);
@@ -252,10 +257,6 @@ async fn handler_request(
 
             // Process middleware for upload routes
             let middleware_result_upload = {
-                let middlewares_lock = middlewares.lock().unwrap();
-                let middlewares_list = middlewares_lock.clone();
-                drop(middlewares_lock);
-
                 Python::attach(|py| {
                     let mut py_request = PyRequest::from_parts(
                         method_str.clone(),
@@ -265,14 +266,14 @@ async fn handler_request(
                         cookies.clone(),
                     );
 
-                    for middleware_info in middlewares_list.iter() {
+                    for middleware_info in middlewares.iter() {
                         let result = middleware_info.handler.call1(py, (py_request.clone(),));
 
                         match result {
                             Ok(response) => {
                                 if let Ok(py_response) = response.extract::<PyResponse>(py) {
                                     let status_u16 = py_response.status;
-                                    return Ok((build_response(py_response), status_u16));
+                                    return MiddlewareOutcome::Response(build_response(py_response), status_u16);
                                 }
                                 if let Ok(updated_request) = response.extract::<PyRequest>(py) {
                                     py_request = updated_request;
@@ -280,23 +281,23 @@ async fn handler_request(
                             }
                             Err(e) => {
                                 error!("Error calling middleware: {:?}", e);
-                                return Ok((
+                                return MiddlewareOutcome::Response(
                                     (StatusCode::INTERNAL_SERVER_ERROR, "Middleware Error")
                                         .into_response(),
                                     500,
-                                ));
+                                );
                             }
                         }
                     }
 
                     // Return the modified request
-                    Err(Box::new(py_request))
+                    MiddlewareOutcome::Continue(py_request)
                 })
             };
 
             // Check if middleware returned an early response
             let py_request_after_middleware = match middleware_result_upload {
-                Ok((response, status_code)) => {
+                MiddlewareOutcome::Response(response, status_code) => {
                     let duration = start_time.elapsed();
                     record_metrics(&telemetry_config, &method_str, &path, status_code, duration);
                     info!(
@@ -305,7 +306,7 @@ async fn handler_request(
                     );
                     return response;
                 }
-                Err(modified_request) => modified_request,
+                MiddlewareOutcome::Continue(modified_request) => Box::new(modified_request),
             };
 
             let content_type = headers.get("content-type").cloned().unwrap_or_default();
@@ -427,10 +428,6 @@ async fn handler_request(
 
     // Process middleware and get either an early response or modified request
     let middleware_result = {
-        let middlewares_lock = middlewares.lock().unwrap();
-        let middlewares_list = middlewares_lock.clone();
-        drop(middlewares_lock);
-
         Python::attach(|py| {
             let mut py_request = PyRequest::from_parts(
                 method_str.clone(),
@@ -440,14 +437,14 @@ async fn handler_request(
                 cookies.clone(),
             );
 
-            for middleware_info in middlewares_list.iter() {
+            for middleware_info in middlewares.iter() {
                 let result = middleware_info.handler.call1(py, (py_request.clone(),));
 
                 match result {
                     Ok(response) => {
                         if let Ok(py_response) = response.extract::<PyResponse>(py) {
                             let status_u16 = py_response.status;
-                            return Ok((build_response(py_response), status_u16));
+                            return MiddlewareOutcome::Response(build_response(py_response), status_u16);
                         }
                         if let Ok(updated_request) = response.extract::<PyRequest>(py) {
                             py_request = updated_request;
@@ -455,22 +452,22 @@ async fn handler_request(
                     }
                     Err(e) => {
                         error!("Error calling middleware: {:?}", e);
-                        return Ok((
+                        return MiddlewareOutcome::Response(
                             (StatusCode::INTERNAL_SERVER_ERROR, "Middleware Error").into_response(),
                             500,
-                        ));
+                        );
                     }
                 }
             }
 
-            // Return the modified request wrapped in Err to distinguish from early responses
-            Err(Box::new(py_request))
+            // Return the modified request
+            MiddlewareOutcome::Continue(py_request)
         })
     };
 
     // Check if middleware returned an early response
     let py_request_after_middleware = match middleware_result {
-        Ok((response, status_code)) => {
+        MiddlewareOutcome::Response(response, status_code) => {
             let duration = start_time.elapsed();
             record_metrics(&telemetry_config, &method_str, &path, status_code, duration);
             info!(
@@ -479,7 +476,7 @@ async fn handler_request(
             );
             return response;
         }
-        Err(modified_request) => modified_request,
+        MiddlewareOutcome::Continue(modified_request) => Box::new(modified_request),
     };
 
     let (response, status_code) = if let Some((route_info, param_values)) = matched_route {
@@ -532,7 +529,7 @@ async fn handler_request(
                             }
 
                             let template_dirs =
-                                template_config.lock().unwrap().template_dirs.clone();
+                                template_config.template_dirs.clone();
                             let template_name = route_info.template_name.as_ref().unwrap();
 
                             match render_template_with_dirs(
