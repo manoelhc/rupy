@@ -273,7 +273,10 @@ async fn handler_request(
                             Ok(response) => {
                                 if let Ok(py_response) = response.extract::<PyResponse>(py) {
                                     let status_u16 = py_response.status;
-                                    return MiddlewareOutcome::Response(build_response(py_response), status_u16);
+                                    return MiddlewareOutcome::Response(
+                                        build_response(py_response),
+                                        status_u16,
+                                    );
                                 }
                                 if let Ok(updated_request) = response.extract::<PyRequest>(py) {
                                     py_request = updated_request;
@@ -444,7 +447,10 @@ async fn handler_request(
                     Ok(response) => {
                         if let Ok(py_response) = response.extract::<PyResponse>(py) {
                             let status_u16 = py_response.status;
-                            return MiddlewareOutcome::Response(build_response(py_response), status_u16);
+                            return MiddlewareOutcome::Response(
+                                build_response(py_response),
+                                status_u16,
+                            );
                         }
                         if let Ok(updated_request) = response.extract::<PyRequest>(py) {
                             py_request = updated_request;
@@ -528,8 +534,7 @@ async fn handler_request(
                                 }
                             }
 
-                            let template_dirs =
-                                template_config.template_dirs.clone();
+                            let template_dirs = template_config.template_dirs.clone();
                             let template_name = route_info.template_name.as_ref().unwrap();
 
                             match render_template_with_dirs(
