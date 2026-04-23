@@ -4,7 +4,7 @@ asgiref==3.11.1
     # via
     #   -r ./benchmark/load-test/django-pg-upsert-select/requirements.txt
     #   django
-django==4.2.29
+django==4.2.30
     # via
     #   -r ./benchmark/load-test/django-pg-upsert-select/requirements.txt
     #   djangorestframework
