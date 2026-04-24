@@ -41,9 +41,8 @@ pub async fn run_server(
 ) -> Result<(), Box<dyn std::error::Error>> {
     Python::initialize();
 
-    let config = telemetry_config.clone();
-    let _telemetry_guard: Option<TelemetryGuard> = if config.enabled {
-        Some(init_telemetry(&config))
+    let _telemetry_guard: Option<TelemetryGuard> = if telemetry_config.enabled {
+        Some(init_telemetry(&telemetry_config))
     } else {
         None
     };
@@ -118,6 +117,7 @@ async fn shutdown_signal() {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handler_request(
     method: Method,
     uri: Uri,
@@ -256,47 +256,17 @@ async fn handler_request(
             };
 
             // Process middleware for upload routes
-            let middleware_result_upload = {
-                Python::attach(|py| {
-                    let mut py_request = PyRequest::from_parts(
-                        method_str.clone(),
-                        path.clone(),
-                        String::new(), // No body for upload routes in middleware
-                        headers.clone(),
-                        cookies.clone(),
-                    );
-
-                    for middleware_info in middlewares.iter() {
-                        let result = middleware_info.handler.call1(py, (py_request.clone(),));
-
-                        match result {
-                            Ok(response) => {
-                                if let Ok(py_response) = response.extract::<PyResponse>(py) {
-                                    let status_u16 = py_response.status;
-                                    return MiddlewareOutcome::Response(
-                                        build_response(py_response),
-                                        status_u16,
-                                    );
-                                }
-                                if let Ok(updated_request) = response.extract::<PyRequest>(py) {
-                                    py_request = updated_request;
-                                }
-                            }
-                            Err(e) => {
-                                error!("Error calling middleware: {:?}", e);
-                                return MiddlewareOutcome::Response(
-                                    (StatusCode::INTERNAL_SERVER_ERROR, "Middleware Error")
-                                        .into_response(),
-                                    500,
-                                );
-                            }
-                        }
-                    }
-
-                    // Return the modified request
-                    MiddlewareOutcome::Continue(py_request)
-                })
-            };
+            let middleware_result_upload = Python::attach(|py| {
+                run_middleware_chain(
+                    py,
+                    &middlewares,
+                    method_str.clone(),
+                    path.clone(),
+                    String::new(), // No body for upload routes in middleware
+                    headers.clone(),
+                    cookies.clone(),
+                )
+            });
 
             // Check if middleware returned an early response
             let py_request_after_middleware = match middleware_result_upload {
@@ -309,7 +279,7 @@ async fn handler_request(
                     );
                     return response;
                 }
-                MiddlewareOutcome::Continue(modified_request) => Box::new(modified_request),
+                MiddlewareOutcome::Continue(modified_request) => modified_request,
             };
 
             let content_type = headers.get("content-type").cloned().unwrap_or_default();
@@ -373,7 +343,7 @@ async fn handler_request(
                 Ok(uploaded_files) => {
                     let resp = Python::attach(|py| {
                         // Use the modified request from middleware
-                        let py_request = py_request_after_middleware.as_ref().clone();
+                        let py_request = py_request_after_middleware.clone();
 
                         let py_files = pyo3::types::PyList::empty(py);
                         for file in uploaded_files {
@@ -430,46 +400,17 @@ async fn handler_request(
     }
 
     // Process middleware and get either an early response or modified request
-    let middleware_result = {
-        Python::attach(|py| {
-            let mut py_request = PyRequest::from_parts(
-                method_str.clone(),
-                path.clone(),
-                body.clone(),
-                headers.clone(),
-                cookies.clone(),
-            );
-
-            for middleware_info in middlewares.iter() {
-                let result = middleware_info.handler.call1(py, (py_request.clone(),));
-
-                match result {
-                    Ok(response) => {
-                        if let Ok(py_response) = response.extract::<PyResponse>(py) {
-                            let status_u16 = py_response.status;
-                            return MiddlewareOutcome::Response(
-                                build_response(py_response),
-                                status_u16,
-                            );
-                        }
-                        if let Ok(updated_request) = response.extract::<PyRequest>(py) {
-                            py_request = updated_request;
-                        }
-                    }
-                    Err(e) => {
-                        error!("Error calling middleware: {:?}", e);
-                        return MiddlewareOutcome::Response(
-                            (StatusCode::INTERNAL_SERVER_ERROR, "Middleware Error").into_response(),
-                            500,
-                        );
-                    }
-                }
-            }
-
-            // Return the modified request
-            MiddlewareOutcome::Continue(py_request)
-        })
-    };
+    let middleware_result = Python::attach(|py| {
+        run_middleware_chain(
+            py,
+            &middlewares,
+            method_str.clone(),
+            path.clone(),
+            body.clone(),
+            headers.clone(),
+            cookies.clone(),
+        )
+    });
 
     // Check if middleware returned an early response
     let py_request_after_middleware = match middleware_result {
@@ -482,7 +423,7 @@ async fn handler_request(
             );
             return response;
         }
-        MiddlewareOutcome::Continue(modified_request) => Box::new(modified_request),
+        MiddlewareOutcome::Continue(modified_request) => modified_request,
     };
 
     let (response, status_code) = if let Some((route_info, param_values)) = matched_route {
@@ -492,7 +433,7 @@ async fn handler_request(
 
         let resp = Python::attach(|py| {
             // Use the modified request from middleware instead of creating a new one
-            let py_request = py_request_after_middleware.as_ref().clone();
+            let py_request = py_request_after_middleware.clone();
 
             let result = if param_values.is_empty() {
                 route_info.handler.call1(py, (py_request,))
@@ -642,4 +583,41 @@ async fn handler_404(uri: Uri) -> axum::response::Response {
     println!("{}", log_entry);
 
     (StatusCode::NOT_FOUND, "404 Not Found").into_response()
+}
+
+fn run_middleware_chain(
+    py: Python,
+    middlewares: &[MiddlewareInfo],
+    method_str: String,
+    path: String,
+    body: String,
+    headers: HashMap<String, String>,
+    cookies: HashMap<String, String>,
+) -> MiddlewareOutcome {
+    let mut py_request = PyRequest::from_parts(method_str, path, body, headers, cookies);
+
+    for middleware_info in middlewares.iter() {
+        let result = middleware_info.handler.call1(py, (py_request.clone(),));
+
+        match result {
+            Ok(response) => {
+                if let Ok(py_response) = response.extract::<PyResponse>(py) {
+                    let status_u16 = py_response.status;
+                    return MiddlewareOutcome::Response(build_response(py_response), status_u16);
+                }
+                if let Ok(updated_request) = response.extract::<PyRequest>(py) {
+                    py_request = updated_request;
+                }
+            }
+            Err(e) => {
+                error!("Error calling middleware: {:?}", e);
+                return MiddlewareOutcome::Response(
+                    (StatusCode::INTERNAL_SERVER_ERROR, "Middleware Error").into_response(),
+                    500,
+                );
+            }
+        }
+    }
+
+    MiddlewareOutcome::Continue(py_request)
 }

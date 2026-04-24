@@ -21,6 +21,8 @@ pub struct Rupy {
     max_body_size: usize,
 }
 
+const MAX_BODY_SIZE: usize = 1_073_741_824; // 1GB
+
 #[pymethods]
 impl Rupy {
     #[new]
@@ -51,6 +53,16 @@ impl Rupy {
     }
 
     fn set_max_body_size(&mut self, size: usize) -> PyResult<()> {
+        if size == 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "max_body_size must be greater than 0",
+            ));
+        }
+        if size > MAX_BODY_SIZE {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "max_body_size must not exceed 1GB",
+            ));
+        }
         self.max_body_size = size;
         Ok(())
     }

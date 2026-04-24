@@ -1,7 +1,9 @@
+use indexmap::IndexMap;
 use percent_encoding::percent_decode_str;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Helper function to decode query string values
 /// Handles both "+" as space and percent-encoded values
@@ -25,7 +27,7 @@ pub struct PyRequest {
     body: String,
     headers: HashMap<String, String>,
     cookies: HashMap<String, String>,
-    parsed_query_params: HashMap<String, String>,
+    parsed_query_params: Arc<IndexMap<String, String>>,
 }
 
 impl PyRequest {
@@ -36,7 +38,7 @@ impl PyRequest {
         headers: HashMap<String, String>,
         cookies: HashMap<String, String>,
     ) -> Self {
-        let parsed_query_params = parse_query_string(&path);
+        let parsed_query_params = Arc::new(parse_query_string(&path));
         PyRequest {
             method,
             path,
@@ -52,7 +54,7 @@ impl PyRequest {
 impl PyRequest {
     #[new]
     fn new(method: String, path: String, body: String) -> Self {
-        let parsed_query_params = parse_query_string(&path);
+        let parsed_query_params = Arc::new(parse_query_string(&path));
         PyRequest {
             method,
             path,
@@ -201,18 +203,24 @@ impl PyRequest {
     #[getter]
     fn query_params(&self, py: Python) -> PyResult<Py<PyDict>> {
         let dict = PyDict::new(py);
-        for (key, value) in &self.parsed_query_params {
+        for (key, value) in self.parsed_query_params.iter() {
             dict.set_item(key, value)?;
         }
         Ok(dict.into())
     }
 }
 
-pub fn parse_query_string(path: &str) -> HashMap<String, String> {
-    let mut params = HashMap::new();
+pub fn parse_query_string(path: &str) -> IndexMap<String, String> {
+    let mut params = IndexMap::new();
     if let Some(query_start) = path.find('?') {
         let query_string = &path[query_start + 1..];
-        for param in query_string.split('&') {
+        if query_string.len() > 100_000 {
+            return params; // short circuit for excessively long queries
+        }
+        for (i, param) in query_string.split('&').enumerate() {
+            if i >= 1000 {
+                break; // short circuit for too many parameters
+            }
             if param.is_empty() {
                 continue;
             }
@@ -222,12 +230,12 @@ pub fn parse_query_string(path: &str) -> HashMap<String, String> {
                 if let (Some(decoded_key), Some(decoded_value)) =
                     (decode_query_value(key), decode_query_value(value))
                 {
+                    // Intentionally "last wins" as insert overwrites existing keys
                     params.insert(decoded_key, decoded_value);
                 }
-            } else {
-                if let Some(decoded_key) = decode_query_value(param) {
-                    params.insert(decoded_key, String::new());
-                }
+            } else if let Some(decoded_key) = decode_query_value(param) {
+                // Intentionally "last wins" as insert overwrites existing keys
+                params.insert(decoded_key, String::new());
             }
         }
     }
