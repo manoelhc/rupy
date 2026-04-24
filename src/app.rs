@@ -18,7 +18,10 @@ pub struct Rupy {
     pub(crate) middlewares: Arc<Mutex<Vec<MiddlewareInfo>>>,
     pub(crate) telemetry_config: Arc<Mutex<TelemetryConfig>>,
     pub(crate) template_config: Arc<Mutex<TemplateConfig>>,
+    max_body_size: usize,
 }
+
+const MAX_BODY_SIZE: usize = 1_073_741_824; // 1GB
 
 #[pymethods]
 impl Rupy {
@@ -45,7 +48,23 @@ impl Rupy {
                 template_dir: "./template".to_string(),
                 template_dirs: vec!["./template".to_string()],
             })),
+            max_body_size: 10 * 1024 * 1024,
         }
+    }
+
+    fn set_max_body_size(&mut self, size: usize) -> PyResult<()> {
+        if size == 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "max_body_size must be greater than 0",
+            ));
+        }
+        if size > MAX_BODY_SIZE {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "max_body_size must not exceed 1GB",
+            ));
+        }
+        self.max_body_size = size;
+        Ok(())
     }
 
     fn route(&self, path: String, handler: Py<PyAny>, methods: Vec<String>) -> PyResult<()> {
@@ -241,10 +260,11 @@ impl Rupy {
     fn run(&self, py: Python, host: Option<String>, port: Option<u16>) -> PyResult<()> {
         let host = host.unwrap_or_else(|| self.host.clone());
         let port = port.unwrap_or(self.port);
-        let routes = self.routes.clone();
-        let middlewares = self.middlewares.clone();
-        let telemetry_config = self.telemetry_config.clone();
-        let template_config = self.template_config.clone();
+        let routes = Arc::new(self.routes.lock().unwrap().clone());
+        let middlewares = Arc::new(self.middlewares.lock().unwrap().clone());
+        let telemetry_config = Arc::new(self.telemetry_config.lock().unwrap().clone());
+        let template_config = Arc::new(self.template_config.lock().unwrap().clone());
+        let max_body_size = self.max_body_size;
 
         py.detach(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -256,6 +276,7 @@ impl Rupy {
                     middlewares,
                     telemetry_config,
                     template_config,
+                    max_body_size,
                 )
                 .await
             });

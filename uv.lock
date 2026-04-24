@@ -227,9 +227,19 @@ dev = [
     { name = "requests", version = "2.33.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "requests", version = "2.32.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
+    { name = "requests", version = "2.32.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "requests", version = "2.33.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+]
+
 [package.metadata]
 requires-dist = [{ name = "requests", marker = "extra == 'dev'", specifier = ">=2.25.0" }]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "requests", specifier = ">=2.32.4" }]
 
 [[package]]
 name = "urllib3"
