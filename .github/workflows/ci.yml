@@ -69,13 +69,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Set up Python ${{ matrix.python-version }}
+        shell: bash -l {0}
         run: |
-          export PYENV_ROOT="$HOME/.pyenv"
-          export PATH="$PYENV_ROOT/bin:$PATH"
           if [[ -z "$(which pyenv)" ]]; then
             curl https://pyenv.run | bash
+            export PYENV_ROOT="$HOME/.pyenv" >> ~/.profile
+            export PATH="$PYENV_ROOT/bin:$PATH" >> ~/.profile
+            eval "$(pyenv init - bash)" >> ~/.profile
           fi
-          eval "$(pyenv init - bash)"
           pyenv install ${{ matrix.python-version }} || true
           pyenv local ${{ matrix.python-version }}
 
@@ -98,23 +99,27 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Install maturin
+        shell: bash -l {0}
         run: pip install maturin
 
       - name: Build Python package
+        shell: bash -l {0}
         run: maturin build --release
 
       - name: Install built wheel
+        shell: bash -l {0}
         env:
           PYTHON_VERSION: "${{ matrix.python-version }}"
         run: |
           vpy="$(echo ${PYTHON_VERSION} | cut -d. -f1)$(echo ${PYTHON_VERSION} | cut -d. -f2)"
           pip install target/wheels/rupy_api*cp${vpy}*.whl
-        shell: bash
 
       - name: Test Python import
+        shell: bash -l {0}
         run: python -c "from rupy import Rupy; print('Successfully imported Rupy')"
 
       - name: Run Python tests (if they exist)
+        shell: bash -l {0}
         run: |
           if [ -d "tests" ]; then
             pip install pytest requests
@@ -122,7 +127,6 @@ jobs:
           else
             echo "No Python tests found, skipping"
           fi
-        shell: bash
         continue-on-error: true
   build-draft:
     needs: install-deps
@@ -139,27 +143,10 @@ jobs:
           key: pyenv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.python-version') }}
 
       - name: Set up Python via pyenv
-        shell: bash
+        shell: bash -l {0}
         run: |
-          source ~/.bashrc
-          if [ -z "$(which pyenv 2>/dev/null)" ]; then
-            rm -rf ${PYENV_ROOT} || true
-            curl --proto '=https' --tlsv1.2 -sSf https://pyenv.run | bash        
-            export PATH="${PYENV_ROOT}/bin:${PATH}"
-            eval "$(pyenv init -)"
-            PYTHON_VERSION=$(cat .python-version)
-            arch -arm64 pyenv install -s "${PYTHON_VERSION}"
-            arch -arm64 pyenv global "${PYTHON_VERSION}"
-            echo "PYENV_ROOT=${PYENV_ROOT}" >> "${GITHUB_ENV}"
-            echo "${PYENV_ROOT}/bin" >> "${GITHUB_PATH}"
-            echo "${PYENV_ROOT}/shims" >> "${GITHUB_PATH}"
-            echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-          else
-            eval "$(pyenv init -)"
-            PYTHON_VERSION=$(cat .python-version)
-            arch -arm64 pyenv install -s "${PYTHON_VERSION}" || true
-            arch -arm64 pyenv global "${PYTHON_VERSION}"
-          fi
+          pyenv install -s "${PYTHON_VERSION}"
+          pyenv global "${PYTHON_VERSION}"
 
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
