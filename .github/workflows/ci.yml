@@ -71,11 +71,11 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         run: |
           export PYENV_ROOT="$HOME/.pyenv"
-          [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-          eval "$(pyenv init - bash)"
+          export PATH="$PYENV_ROOT/bin:$PATH"
           if [[ -z "$(which pyenv)" ]]; then
             curl https://pyenv.run | bash
           fi
+          eval "$(pyenv init - bash)"
           pyenv install ${{ matrix.python-version }} || true
           pyenv local ${{ matrix.python-version }}
 
