@@ -100,7 +100,7 @@ jobs:
 
       - name: Install maturin
         shell: bash -l {0}
-        run: pip install maturin
+        run: pip3 install maturin
 
       - name: Build Python package
         shell: bash -l {0}
@@ -112,7 +112,7 @@ jobs:
           PYTHON_VERSION: "${{ matrix.python-version }}"
         run: |
           vpy="$(echo ${PYTHON_VERSION} | cut -d. -f1)$(echo ${PYTHON_VERSION} | cut -d. -f2)"
-          pip install target/wheels/rupy_api*cp${vpy}*.whl
+          pip3 install target/wheels/rupy_api*cp${vpy}*.whl
 
       - name: Test Python import
         shell: bash -l {0}
@@ -122,7 +122,7 @@ jobs:
         shell: bash -l {0}
         run: |
           if [ -d "tests" ]; then
-            pip install pytest requests
+            pip3 install pytest requests
             pytest tests/
           else
             echo "No Python tests found, skipping"
@@ -167,29 +167,32 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Install maturin
-        run: pip install maturin
+        shell: bash -l {0}
+        run: pip3 install maturin
 
       - name: Build Python package
+        shell: bash -l {0}
         run: maturin build --release
 
       - name: Install built wheel
         run: |
           vpy="$(python --version | cut -d' ' -f2 | cut -d. -f1,2 | tr -d '.')"
-          pip install target/wheels/rupy_api*cp${vpy}*.whl
-        shell: bash
+          pip3 install target/wheels/rupy_api*cp${vpy}*.whl
+        shell: bash -l {0}
 
       - name: Test Python import
+        shell: bash -l {0}
         run: python -c "from rupy import Rupy; print('Successfully imported Rupy')"
 
       - name: Run Python tests (if they exist)
         run: |
           if [ -d "tests" ]; then
-            pip install pytest requests
+            pip3 install pytest requests
             pytest tests/
           else
             echo "No Python tests found, skipping"
           fi
-        shell: bash
+        shell: bash -l {0}
         continue-on-error: true
   lint:
     needs: install-deps
@@ -213,6 +216,7 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings -A clippy::useless-conversion
 
       - name: Set up Python ${{ matrix.python-version }}
+        shell: bash -l {0}
         run: |
           source ~/.bashrc
           if [[ -z "$(which pyenv)" ]]; then
@@ -222,10 +226,12 @@ jobs:
           pyenv local "3.12.13"
 
       - name: Install Python linting tools
+        shell: bash -l {0}
         run: |
-          pip install ruff black mypy
+          pip3 install ruff black mypy
 
       - name: Check Python code formatting with black
+        shell: bash -l {0}
         run: |
           if [ -d "python" ]; then
             black --check python/
@@ -233,6 +239,7 @@ jobs:
         continue-on-error: true
 
       - name: Lint Python code with ruff
+        shell: bash -l {0}
         run: |
           if [ -d "python" ]; then
             ruff check python/
