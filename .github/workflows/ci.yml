@@ -8,7 +8,7 @@ on:
 
 jobs:
   install-deps:
-    runs-on: rpi
+    runs-on: self-hosted
     steps:
       - uses: manoelhc/debian-runner-setup-action@main
         with:
@@ -57,7 +57,7 @@ jobs:
     needs: install-deps
     if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     name: Python Build and Test
-    runs-on: ${{ matrix.os }}
+    runs-on: self-hosted
     permissions:
       contents: read
     strategy:
@@ -120,7 +120,7 @@ jobs:
   build-draft:
     needs: install-deps
     if: github.event_name == 'pull_request' && github.event.pull_request.draft == true
-    runs-on: rpi
+    runs-on: self-hosted
     permissions:
       contents: read
     steps:
@@ -201,7 +201,7 @@ jobs:
     permissions:
       contents: read
     name: Lint and Format Check
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - uses: actions/checkout@v6
