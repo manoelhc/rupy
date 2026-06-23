@@ -19,7 +19,7 @@ jobs:
     permissions:
       contents: read
     name: Rust Build and Test
-    runs-on: rpi
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v6
       - name: Install Rust toolchain
