@@ -135,6 +135,7 @@ jobs:
       - name: Set up Python via pyenv
         shell: bash
         run: |
+          source ~/.bashrc
           if [ -z "$(which pyenv 2>/dev/null)" ]; then
             rm -rf ${PYENV_ROOT} || true
             curl --proto '=https' --tlsv1.2 -sSf https://pyenv.run | bash        
