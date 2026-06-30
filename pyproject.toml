@@ -7,7 +7,7 @@ name = "rupy-api"
 version = "0.1.0"
 description = "A high-performance web framework for Python, powered by Rust and Axum"
 readme = "INSTRUCTIONS.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Manoel Carvalho"},
@@ -27,3 +27,8 @@ dev = [
 python-source = "python"
 # Place the compiled extension inside the Python package: rupy/rupy.*.so
 module-name = "rupy.rupy"
+
+[dependency-groups]
+dev = [
+    "requests>=2.32.4",
+]

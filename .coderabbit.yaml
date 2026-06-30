@@ -78,16 +78,3 @@ knowledge_base:
   opt_out: false
   learnings:
     scope: global
-ignore:
-  - '*.lock'
-  - target/**
-  - .venv/**
-  - __pycache__/**
-  - '*.pyc'
-  - .pytest_cache/**
-  - build/**
-  - dist/**
-  - '*.egg-info/**'
-  - node_modules/**
-  - .git/**
-enable_free_tier: true
