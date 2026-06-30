@@ -5,14 +5,22 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
-
+env:
+  PYENV_ROOT: ~/.pyenv
 jobs:
+  install-deps:
+    runs-on: self-hosted
+    steps:
+      - uses: manoelhc/debian-runner-setup-action@main
+        with:
+          packages: full
+          sudo: true
   rust-build-and-test:
+    needs: install-deps
     permissions:
       contents: read
     name: Rust Build and Test
-    runs-on: ubuntu-latest
-
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v7
 
@@ -48,8 +56,12 @@ jobs:
         run: cargo test --release
 
   python-build-and-test:
+    needs: install-deps
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     name: Python Build and Test
-    runs-on: ${{ matrix.os }}
+    runs-on: self-hosted
+    permissions:
+      contents: read
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
@@ -59,9 +71,16 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
+        shell: bash -l {0}
+        run: |
+          if [[ -z "$(which pyenv)" ]]; then
+            curl https://pyenv.run | bash
+            export PYENV_ROOT="$HOME/.pyenv" >> ~/.profile
+            export PATH="$PYENV_ROOT/bin:$PATH" >> ~/.profile
+            eval "$(pyenv init - bash)" >> ~/.profile
+          fi
+          pyenv install ${{ matrix.python-version }} || true
+          pyenv local ${{ matrix.python-version }}
 
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -82,38 +101,107 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Install maturin
-        run: pip install maturin
+        shell: bash -l {0}
+        run: pip3 install maturin
 
       - name: Build Python package
+        shell: bash -l {0}
         run: maturin build --release
 
       - name: Install built wheel
+        shell: bash -l {0}
         env:
           PYTHON_VERSION: "${{ matrix.python-version }}"
         run: |
           vpy="$(echo ${PYTHON_VERSION} | cut -d. -f1)$(echo ${PYTHON_VERSION} | cut -d. -f2)"
-          pip install target/wheels/rupy_api*cp${vpy}*.whl
-        shell: bash
+          pip3 install target/wheels/rupy_api*cp${vpy}*.whl
 
       - name: Test Python import
+        shell: bash -l {0}
+        run: python -c "from rupy import Rupy; print('Successfully imported Rupy')"
+
+      - name: Run Python tests (if they exist)
+        shell: bash -l {0}
+        run: |
+          if [ -d "tests" ]; then
+            pip3 install pytest requests
+            pytest tests/
+          else
+            echo "No Python tests found, skipping"
+          fi
+        continue-on-error: true
+  build-draft:
+    needs: install-deps
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == true
+    runs-on: self-hosted
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - name: Cache pyenv Python installation
+        uses: actions/cache@v5
+        with:
+          path: ~/.pyenv/versions
+          key: pyenv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.python-version') }}
+
+      - name: Set up Python via pyenv
+        shell: bash -l {0}
+        run: |
+          pyenv install -s "${PYTHON_VERSION}"
+          pyenv global "${PYTHON_VERSION}"
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install maturin
+        shell: bash -l {0}
+        run: pip3 install maturin
+
+      - name: Build Python package
+        shell: bash -l {0}
+        run: maturin build --release
+
+      - name: Install built wheel
+        run: |
+          vpy="$(python --version | cut -d' ' -f2 | cut -d. -f1,2 | tr -d '.')"
+          pip3 install target/wheels/rupy_api*cp${vpy}*.whl
+        shell: bash -l {0}
+
+      - name: Test Python import
+        shell: bash -l {0}
         run: python -c "from rupy import Rupy; print('Successfully imported Rupy')"
 
       - name: Run Python tests (if they exist)
         run: |
           if [ -d "tests" ]; then
-            pip install pytest requests
+            pip3 install pytest requests
             pytest tests/
           else
             echo "No Python tests found, skipping"
           fi
-        shell: bash
+        shell: bash -l {0}
         continue-on-error: true
-
   lint:
+    needs: install-deps
     permissions:
       contents: read
     name: Lint and Format Check
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - uses: actions/checkout@v7
@@ -130,16 +218,23 @@ jobs:
       - name: Run Clippy linter
         run: cargo clippy --all-targets --all-features -- -D warnings -A clippy::useless-conversion
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
+      - name: Set up Python ${{ matrix.python-version }}
+        shell: bash -l {0}
+        run: |
+          source ~/.bashrc
+          if [[ -z "$(which pyenv)" ]]; then
+            curl https://pyenv.run | bash
+          fi
+          pyenv install "3.12.13" || true
+          pyenv local "3.12.13"
 
       - name: Install Python linting tools
+        shell: bash -l {0}
         run: |
-          pip install ruff black mypy
+          pip3 install ruff black mypy
 
       - name: Check Python code formatting with black
+        shell: bash -l {0}
         run: |
           if [ -d "python" ]; then
             black --check python/
@@ -147,6 +242,7 @@ jobs:
         continue-on-error: true
 
       - name: Lint Python code with ruff
+        shell: bash -l {0}
         run: |
           if [ -d "python" ]; then
             ruff check python/
