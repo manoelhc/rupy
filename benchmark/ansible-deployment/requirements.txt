@@ -2,7 +2,7 @@
 #    uv pip compile ./benchmark/ansible-deployment/requirements.txt -o ./benchmark/ansible-deployment/requirements.txt
 ansible==13.3.0
     # via -r ./benchmark/ansible-deployment/requirements.txt
-ansible-core==2.20.2
+ansible-core==2.20.7rc1
     # via
     #   -r ./benchmark/ansible-deployment/requirements.txt
     #   ansible
