@@ -24,7 +24,7 @@ jobs:
           version=$(echo ${{ github.ref_name }} | cut -dv -f2)
           toml set --toml-path pyproject.toml project.version "$version"
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
           toolchain: stable
 
@@ -78,7 +78,7 @@ jobs:
           toml set --toml-path pyproject.toml project.version "$version"
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
           toolchain: stable
 
@@ -120,7 +120,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
           toolchain: stable
 
